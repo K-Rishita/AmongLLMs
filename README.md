@@ -1,4 +1,4 @@
-# *AmongUs*: A Sandbox for Measuring and Detecting Agentic Deception
+# _AmongUs_: A Sandbox for Measuring and Detecting Agentic Deception
 
 [Paper link.](https://arxiv.org/abs/2504.04072)
 
@@ -13,12 +13,14 @@ The aim is to simulate the popular multiplayer game "Among Us" using AI agents a
 ## Setup
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/7vik/AmongUs.git
    cd AmongUs
    ```
 
 2. Install [uv](https://docs.astral.sh/uv/) if you haven't already:
+
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
@@ -35,21 +37,25 @@ To run the sandbox and log games of various LLMs playing against each other, run
 ```bash
 uv run main.py
 ```
+
 You will need to add a `.env` file with an [OpenRouter](https://openrouter.ai/) API key.
 
 ### Sample Commands
 
 Run a single game with the UI enabled:
+
 ```bash
 uv run main.py --num_games 1 --display_ui True
 ```
 
 Run 10 games with free models (using Llama or GPT-based open-source models):
+
 ```bash
 uv run main.py --num_games 10 --crewmate_llm "meta-llama/llama-3.1-8b-instruct:free" --impostor_llm "meta-llama/llama-3.1-8b-instruct:free"
 ```
 
 Run a tournament with multiple models:
+
 ```bash
 uv run main.py --num_games 100 --tournament_style "1on1"
 ```
@@ -63,16 +69,43 @@ The `human_trials/` directory contains a web-based interface that allows humans 
 To run the human trials interface:
 
 1. Start the FastAPI server:
+
    ```bash
    uv run human_trials/server.py
    ```
 
 2. Open your browser and navigate to:
+
    ```
    http://localhost:3000
    ```
 
 3. Follow the on-screen instructions to create a game and join as a human player alongside AI agents.
+
+### Configuring Models for Human Trials
+
+To specify which models AI agents use in the human trial interface, modify the `DEFAULT_GAME_ARGS` in `human_trials/config.py`. You can set specific models for both Impostors and Crewmates by updating the `agent_config`.
+
+For example, to use specific OpenRouter models like `meta-llama/llama-3.3-70b-instruct:free` and `openai/gpt-oss-120b:free`, configure them as follows:
+
+```AmongLLMs/human_trials/config.py#L35-41
+    "agent_config": {
+        "Impostor": "LLM",
+        "Crewmate": "LLM",
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct:free"],
+        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-120b:free"],
+        "assignment_mode": "unique",  # Use 'unique' to ensure different models per agent
+    },
+```
+
+### Model Assignment Modes
+
+In `human_trials/config.py`, the `assignment_mode` key in `agent_config` controls how models are assigned to AI agents:
+
+- **`random` (default)**: Each agent independently picks a random model from the provided list. This may result in the same model being used by multiple agents in the same game.
+- **`unique`**: The system shuffles the provided list of models and assigns each agent a unique model from that list (no repetition).
+
+> **Note:** When using `unique` mode, ensure you provide enough models in the `IMPOSTOR_LLM_CHOICES` and `CREWMATE_LLM_CHOICES` lists to cover all AI agents (e.g., 2 impostors and 4-5 crewmates depending on game size).
 
 The interface provides a real-time view of the game state, allows you to make moves, participate in meetings, and vote on suspected impostors just like the AI agents.
 
@@ -141,6 +174,7 @@ We use the [Goodfire API](https://goodfire.ai/) to evaluate SAE features on the 
 ```
 reports/2025_02_27_sparse_autoencoders.ipynb
 ```
+
 You will need to add a `.env` file with a Goodfire API key.
 
 ## Project Structure

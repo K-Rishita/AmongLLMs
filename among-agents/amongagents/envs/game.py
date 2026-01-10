@@ -1,10 +1,10 @@
-import random
 import asyncio
+import json
+import os
+import random
 import time
 
 import numpy as np
-import json
-import os
 
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
 from amongagents.agent.neutral_prompts import (
@@ -28,6 +28,7 @@ from amongagents.envs.tools import GetBestPath
 # Set Flask environment variable to True by default
 if "FLASK" not in os.environ:
     os.environ["FLASK"] = "True"
+
 
 class AmongUs:
     def __init__(
@@ -129,7 +130,7 @@ class AmongUs:
                 #     f"{i} Initializing crewmate with personality {crewmate_personality}"
                 # )
                 player = Crewmate(
-                    name=f"Player {i+1}",
+                    name=f"Player {i + 1}",
                     color=colors[i],
                     location="Cafeteria",
                     personality=crewmate_personality,
@@ -145,7 +146,7 @@ class AmongUs:
                 #     f"{i} Initializing impostor with personality {imposter_personality}"
                 # )
                 player = Impostor(
-                    name=f"Player {i+1}",
+                    name=f"Player {i + 1}",
                     color=colors[i],
                     location="Cafeteria",
                     personality=imposter_personality,
@@ -162,9 +163,29 @@ class AmongUs:
         else:
             tools = [GetBestPath(network=self.map.ship_map)]
 
+            # Check if we should use unique models for each agent
+            use_unique_models = self.agent_config.get("assignment_mode") == "unique"
+
+            # Prepare pools of models if in unique mode
+            impostor_models = self.agent_config.get("IMPOSTOR_LLM_CHOICES", []).copy()
+            crewmate_models = self.agent_config.get("CREWMATE_LLM_CHOICES", []).copy()
+
+            if use_unique_models:
+                import random
+
+                random.shuffle(impostor_models)
+                random.shuffle(crewmate_models)
+
             agent_dict = {
-                "LLM": lambda player: LLMAgent(player, tools, self.game_index, self.agent_config, self.list_of_impostors),
-                "Random": RandomAgent,
+                "LLM": lambda player, model=None: LLMAgent(
+                    player,
+                    tools,
+                    self.game_index,
+                    self.agent_config,
+                    self.list_of_impostors,
+                    model=model,
+                ),
+                "Random": lambda player, model=None: RandomAgent(player),
             }
             self.agents = []
             for i, player in enumerate(self.players):
@@ -175,18 +196,35 @@ class AmongUs:
                     human_agent.game_id = self.game_index
                     self.agents.append(human_agent)
                     self.human_index = i
-                    print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                    print(
+                        f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}"
+                    )
                     # Update max_steps for human agent
-                    if hasattr(self.agents[-1], 'update_max_steps'):
-                        self.agents[-1].update_max_steps(self.game_config.get("max_timesteps", 50))
+                    if hasattr(self.agents[-1], "update_max_steps"):
+                        self.agents[-1].update_max_steps(
+                            self.game_config.get("max_timesteps", 50)
+                        )
                 else:
-                    self.agents.append(agent_dict[self.agent_config[player.identity]](player))
-                    print(f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}")
+                    selected_model = None
+                    if use_unique_models:
+                        if player.identity == "Impostor" and impostor_models:
+                            selected_model = impostor_models.pop(0)
+                        elif player.identity == "Crewmate" and crewmate_models:
+                            selected_model = crewmate_models.pop(0)
+
+                    self.agents.append(
+                        agent_dict[self.agent_config[player.identity]](
+                            player, model=selected_model
+                        )
+                    )
+                    print(
+                        f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}"
+                    )
                 if player.identity == "Impostor":
                     self.list_of_impostors.append(player.name)
-                    
+
                 # add to summary json
-                self.summary_json[f"Game {self.game_index}"]["Player " + str(i+1)] = {
+                self.summary_json[f"Game {self.game_index}"]["Player " + str(i + 1)] = {
                     "name": player.name,
                     "color": player.color,
                     "identity": player.identity,
@@ -209,7 +247,9 @@ class AmongUs:
         print(text)
         # add to summary json
         self.summary_json[f"Game {self.game_index}"]["winner"] = winner
-        self.summary_json[f"Game {self.game_index}"]["winner_reason"] = winner_reason_map[winner]
+        self.summary_json[f"Game {self.game_index}"]["winner_reason"] = (
+            winner_reason_map[winner]
+        )
         # finally, append the summary json to the experiment path as a single line json
         summary_path = os.path.join(os.environ["EXPERIMENT_PATH"], "summary.json")
         with open(summary_path, "a") as f:
@@ -305,7 +345,7 @@ class AmongUs:
 
     async def task_phase_step(self):
         for agent in self.agents:
-            if 'homosapiens' in agent.model:
+            if "homosapiens" in agent.model:
                 self.is_human_turn = True
             else:
                 self.is_human_turn = False
@@ -324,7 +364,7 @@ class AmongUs:
         for round in range(self.game_config["discussion_rounds"]):
             print("Discussion round", round)
             for agent in self.agents:
-                if 'homosapiens' in agent.model:
+                if "homosapiens" in agent.model:
                     self.is_human_turn = True
                 else:
                     self.is_human_turn = False
@@ -338,7 +378,7 @@ class AmongUs:
         print("Voting phase")
         self.vote_info_one_round = {}
         for agent in self.agents:
-            if 'homosapiens' in agent.model:
+            if "homosapiens" in agent.model:
                 self.is_human_turn = True
             else:
                 self.is_human_turn = False

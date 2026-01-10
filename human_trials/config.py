@@ -1,6 +1,6 @@
-import uuid
 import datetime
 import subprocess
+import uuid
 
 # Generate unique session ID
 SESSION_ID = str(uuid.uuid4())[:8]
@@ -24,6 +24,8 @@ BIG_LIST_OF_MODELS = [
     "deepseek/deepseek-r1",
     "meta-llama/llama-3.3-70b-instruct",
     "google/gemini-2.0-flash-001",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "openai/gpt-oss-120b:free",
 ]
 
 # Default game configuration
@@ -35,8 +37,9 @@ DEFAULT_GAME_ARGS = {
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
-        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
-        "CREWMATE_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct"],
+        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct:free"],
+        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-120b:free"],
+        "assignment_mode": "random",  # 'random' picks with replacement, 'unique' picks without replacement
     },
     "UI": False,
     "Streamlit": False,  # Set to False for command line
@@ -52,4 +55,3 @@ CONFIG = {
     "logs_path": "logs",
     "game_args": DEFAULT_GAME_ARGS,
 }
-
