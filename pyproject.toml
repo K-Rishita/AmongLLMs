@@ -39,3 +39,8 @@ all = [
 
 [tool.uv.sources]
 amongagents = { path = "among-agents" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.13",
+]

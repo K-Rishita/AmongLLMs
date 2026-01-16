@@ -145,7 +145,7 @@ class Speak(Action):
         # ADDITION BY ME
         if env.current_phase == "task":
             return []
-        
+
         return [Speak(current_location=player.location)]
 
 

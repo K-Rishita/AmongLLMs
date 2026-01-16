@@ -5,7 +5,6 @@ from tkinter import messagebox
 
 class MapUI:
     def __init__(self, map_image_dir, room_coords, debug=True):
-
         self.map_image_dir = map_image_dir
         # get absolute path of the image
         self.map_image_dir = os.path.abspath(self.map_image_dir)
@@ -14,7 +13,6 @@ class MapUI:
         # self.reset()
 
     def reset(self):
-
         self.master = tk.Tk()
         self.map_image = tk.PhotoImage(file=self.map_image_dir)
         self.canvas = tk.Canvas(

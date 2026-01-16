@@ -71,7 +71,8 @@ To run the human trials interface:
 1. Start the FastAPI server:
 
    ```bash
-   uv run human_trials/server.py
+   cd human_trials/
+   uv run server.py
    ```
 
 2. Open your browser and navigate to:
@@ -86,14 +87,14 @@ To run the human trials interface:
 
 To specify which models AI agents use in the human trial interface, modify the `DEFAULT_GAME_ARGS` in `human_trials/config.py`. You can set specific models for both Impostors and Crewmates by updating the `agent_config`.
 
-For example, to use specific OpenRouter models like `meta-llama/llama-3.3-70b-instruct:free` and `openai/gpt-oss-120b:free`, configure them as follows:
+For example, to use specific OpenRouter models like `meta-llama/llama-3.3-70b-instruct:free` and `openai/gpt-oss-20b:free`, configure them as follows:
 
 ```AmongLLMs/human_trials/config.py#L35-41
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
         "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct:free"],
-        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-120b:free"],
+        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-20b:free"],
         "assignment_mode": "unique",  # Use 'unique' to ensure different models per agent
     },
 ```

@@ -25,7 +25,7 @@ BIG_LIST_OF_MODELS = [
     "meta-llama/llama-3.3-70b-instruct",
     "google/gemini-2.0-flash-001",
     "meta-llama/llama-3.3-70b-instruct:free",
-    "openai/gpt-oss-120b:free",
+    "openai/gpt-oss-20b:free",
 ]
 
 # Default game configuration
@@ -38,7 +38,7 @@ DEFAULT_GAME_ARGS = {
         "Impostor": "LLM",
         "Crewmate": "LLM",
         "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct:free"],
-        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-120b:free"],
+        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-20b:free"],
         "assignment_mode": "random",  # 'random' picks with replacement, 'unique' picks without replacement
     },
     "UI": False,

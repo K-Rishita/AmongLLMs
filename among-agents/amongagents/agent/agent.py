@@ -212,11 +212,15 @@ class LLMAgent(Agent):
                             # Parse error details from response
                             try:
                                 error_data = json.loads(response_text)
-                                error_msg = error_data.get("error", {}).get("message", response_text[:200])
+                                error_msg = error_data.get("error", {}).get(
+                                    "message", response_text[:200]
+                                )
                             except:
                                 error_msg = response_text[:200]
 
-                            last_error = f"HTTP {response.status} for {self.model}: {error_msg}"
+                            last_error = (
+                                f"HTTP {response.status} for {self.model}: {error_msg}"
+                            )
                             print(f"[API Error] {last_error}")
 
                             # Don't retry on auth/permission errors - they won't succeed
@@ -226,11 +230,15 @@ class LLMAgent(Agent):
 
                         data = json.loads(response_text)
                         if "choices" not in data:
-                            last_error = f"'choices' key not in response for {self.model}"
+                            last_error = (
+                                f"'choices' key not in response for {self.model}"
+                            )
                             print(f"[API Error] {last_error}")
                             continue
                         if not data["choices"]:
-                            last_error = f"'choices' key is empty in response for {self.model}"
+                            last_error = (
+                                f"'choices' key is empty in response for {self.model}"
+                            )
                             print(f"[API Error] {last_error}")
                             continue
                         return data["choices"][0]["message"]["content"]

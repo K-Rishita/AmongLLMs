@@ -103,7 +103,7 @@ class Player:
     def available_actions_prompt(self):
         text = "Available actions:\n"
         for i, action in enumerate(self.available_actions):
-            text += f"{i+1}. {action}\n"
+            text += f"{i + 1}. {action}\n"
         return text
 
     def action_history_prompt(self, recent_num=4):
@@ -135,7 +135,7 @@ class Player:
             text += "No observations have been made yet.\n"
         else:
             for i, message in enumerate(self.observation_history[-recent_num:]):
-                text += f"{i+1}. {message}\n"
+                text += f"{i + 1}. {message}\n"
         text += "\n"
         return text
 
@@ -146,7 +146,7 @@ class Player:
         else:
             for i, task in enumerate(self.tasks):
                 completed = "[completed]" if task.check_completion() else ""
-                text += f"{i+1}. {task} {completed}\n"
+                text += f"{i + 1}. {task} {completed}\n"
                 path = task.find_path(self.location, identity=self.identity)
                 if len(path) > 1:
                     path = "->".join(path)

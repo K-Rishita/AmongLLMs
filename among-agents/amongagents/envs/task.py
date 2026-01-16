@@ -83,7 +83,6 @@ class TaskAssignment:
         self.assigned_tasks = []
 
     def assign_tasks_to_players(self, players):
-
         self.reset_task_assignments()
         num_common_tasks = self.game_config["num_common_tasks"]
         selected_common_tasks = np.random.choice(

@@ -9,7 +9,7 @@ config_gpt2: Dict[str, Any] = {
     "test_split": 0.2,
     "batch_size": 32,
     "learning_rate": 0.001,
-    }
+}
 
 config_phi4: Dict[str, Any] = {
     "short_name": "phi4",
