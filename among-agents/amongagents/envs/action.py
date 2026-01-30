@@ -254,6 +254,21 @@ class Kill(Action):
         super().execute(env, player)
         self.other_player.is_alive = False
         player.kill_cooldown = env.game_config["kill_cooldown"]
+        
+        # Record kill in history
+        current_location = player.location
+        witnesses = [p.name for p in env.map.get_players_in_room(current_location) 
+                    if p != player and p != self.other_player and p.is_alive]
+        
+        kill_record = {
+            "timestep": env.timestep,
+            "killer": player.name,
+            "victim": self.other_player.name,
+            "location": current_location,
+            "witnesses": witnesses,
+            "method": "kill"
+        }
+        env.kill_history.append(kill_record)
 
     @staticmethod
     def can_execute_actions(env, player):

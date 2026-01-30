@@ -78,6 +78,9 @@ class AmongUs:
         self.camera_record = {}
         self.votes = {}
         self.vote_info_one_round = {}
+        self.voting_history = []
+        self.kill_history = []
+        self.meeting_number = 0
         self.discussion_rounds_left = 0
         self.message_system = MessageSystem(game_config)
         self.game_over = False
@@ -102,6 +105,7 @@ class AmongUs:
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
         self.votes = {}
         self.vote_info_one_round = {}
+        # Note: voting_history and kill_history preserved across rounds
 
         # game state
         self.current_phase = "task"
@@ -257,6 +261,10 @@ class AmongUs:
             self.UI.report(text)
             self.UI.quit_UI()
         print(text)
+        
+        # Generate enhanced summary data
+        self.add_enhanced_summary_data(winner, winner_reason_map[winner])
+        
         # add to summary json
         self.summary_json[f"Game {self.game_index}"]["winner"] = winner
         self.summary_json[f"Game {self.game_index}"]["winner_reason"] = (
@@ -269,6 +277,34 @@ class AmongUs:
             f.write("\n")
 
         return winner
+
+    def add_enhanced_summary_data(self, winner, winner_reason):
+        """Add enhanced summary data including voting history, kill history, and game outcome."""
+        game_key = f"Game {self.game_index}"
+        
+        # Add voting history
+        self.summary_json[game_key]["voting_history"] = self.voting_history
+        
+        # Add kill history  
+        self.summary_json[game_key]["kill_history"] = self.kill_history
+        
+        # Add enhanced game outcome
+        surviving_players = [p.name for p in self.players if p.is_alive]
+        eliminated_players = [p.name for p in self.players if not p.is_alive]
+        
+        final_impostor_count = sum(1 for p in self.players if p.is_alive and p.identity == "Impostor")
+        final_crewmate_count = sum(1 for p in self.players if p.is_alive and p.identity == "Crewmate")
+        
+        game_outcome = {
+            "winner": "Crewmates" if winner in [2, 3] else "Impostors",
+            "reason": winner_reason,
+            "surviving_players": surviving_players,
+            "eliminated_players": eliminated_players,
+            "final_impostor_count": final_impostor_count,
+            "final_crewmate_count": final_crewmate_count
+        }
+        
+        self.summary_json[game_key]["game_outcome"] = game_outcome
 
     def check_game_over(self):
         num_impostors = sum(
@@ -369,7 +405,8 @@ class AmongUs:
         # Move all players to the Cafeteria
         for player in self.players:
             player.location = "Cafeteria"
-
+        
+        self.meeting_number += 1  # Track meeting count
         self.update_map()
 
         # Discussion
@@ -405,7 +442,7 @@ class AmongUs:
 
     def voteout(self):
         round = self.game_config["discussion_rounds"] - self.discussion_rounds_left
-        max_votes = max(self.votes.values())
+        max_votes = max(self.votes.values()) if self.votes else 0
         print(self.vote_info_one_round)
         players_with_max_votes = [
             player for player, votes in self.votes.items() if votes == max_votes
@@ -415,6 +452,33 @@ class AmongUs:
         for voter, vote_target in self.vote_info_one_round.items():
             print(voter)
             vote_info.append(f"{str(voter)} voted for {str(vote_target)}")
+        
+        # Create vote tally with player names
+        vote_tally = {}
+        for player, vote_count in self.votes.items():
+            vote_tally[player.name] = vote_count
+        
+        # Record this voting round in history
+        voting_round = {
+            "timestep": self.timestep,
+            "meeting_number": self.meeting_number,
+            "vote_breakdown": dict(self.vote_info_one_round),
+            "vote_tally": vote_tally,
+            "eliminated_player": players_with_max_votes[0].name if len(players_with_max_votes) == 1 else None,
+            "was_tie": len(players_with_max_votes) > 1
+        }
+        self.voting_history.append(voting_round)
+        
+        # Also log to activity log for compatibility
+        vote_summary_record = {
+            "timestep": self.timestep,
+            "phase": "voting_results",
+            "round": round,
+            "action": "VOTE_SUMMARY",
+            "vote_data": voting_round
+        }
+        self.activity_log.append(vote_summary_record)
+        
         if len(players_with_max_votes) == 1:
             player = players_with_max_votes[0]
             player.is_alive = False
