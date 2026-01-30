@@ -32,6 +32,8 @@ from run import RunGames
 
 app = FastAPI(title="Among Us Game Server")
 
+from fastapi.staticfiles import StaticFiles
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,6 +41,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount assets directory
+assets_path = os.path.join(project_root, "human_trials", "assets")
+app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
 load_dotenv()
 

@@ -195,7 +195,7 @@ class LLMAgent(Agent):
 
         last_error = None
         async with aiohttp.ClientSession() as session:
-            for attempt in range(10):
+            for attempt in range(5):  # 5 API retries (format retries handled separately)
                 try:
                     async with session.post(
                         self.api_url, headers=headers, data=json.dumps(payload)
@@ -263,10 +263,86 @@ class LLMAgent(Agent):
         ]
         return self.send_request(messages)
 
+    def _validate_and_parse_action(self, response, available_actions):
+        """
+        Validate and parse an LLM response to extract an action.
+        
+        Returns:
+            tuple: (action, memory, summarization, error_message)
+            - action: The matched action if valid, None otherwise
+            - memory: Extracted condensed memory (or None)
+            - summarization: Extracted thinking process (or None)
+            - error_message: Description of validation failure (or None if valid)
+        """
+        if not response or not response.strip():
+            return None, None, None, "Response is empty"
+        
+        # Try to parse the structured format
+        pattern = r"\[Condensed Memory\]((.|\n)*?)\[Thinking Process\]((.|\n)*?)\[Action\]((.|\n)*)$"
+        match = re.search(pattern, response, re.IGNORECASE)
+        
+        memory = None
+        summarization = None
+        
+        if match:
+            memory = match.group(1).strip()
+            summarization = match.group(3).strip()
+            output_action = match.group(5).strip()
+        else:
+            # Try to find just [Action] section
+            action_match = re.search(r"\[Action\]\s*(.+)", response, re.IGNORECASE | re.DOTALL)
+            if action_match:
+                output_action = action_match.group(1).strip()
+            else:
+                # Last resort: use the whole response
+                output_action = response.strip()
+        
+        # Normalize the output action for matching
+        output_action_lower = output_action.lower()
+        output_action_normalized = ' '.join(output_action.split())  # Collapse whitespace
+        
+        # Try to match against available actions
+        for action in available_actions:
+            action_repr = repr(action)
+            action_repr_lower = action_repr.lower()
+            action_repr_normalized = ' '.join(action_repr.split())
+            
+            # Exact match
+            if action_repr in output_action:
+                return action, memory, summarization, None
+            
+            # Case-insensitive match
+            if action_repr_lower in output_action_lower:
+                return action, memory, summarization, None
+            
+            # Normalized whitespace match
+            if action_repr_normalized.lower() in output_action_normalized.lower():
+                return action, memory, summarization, None
+            
+            # Handle SPEAK action specially
+            if action.name == "SPEAK" and "speak" in output_action_lower:
+                # Extract message after SPEAK:
+                speak_match = re.search(r"speak[:\s]+(.+)", output_action, re.IGNORECASE | re.DOTALL)
+                if speak_match:
+                    action.message = speak_match.group(1).strip()
+                    return action, memory, summarization, None
+            
+            # Handle VOTE action specially - look for "VOTE Player X"
+            if action.name == "VOTE":
+                vote_match = re.search(r"vote\s+(.+)", output_action, re.IGNORECASE)
+                if vote_match:
+                    vote_target = vote_match.group(1).strip().lower()
+                    if hasattr(action, 'other_player') and action.other_player.name.lower() in vote_target:
+                        return action, memory, summarization, None
+        
+        # No match found - generate helpful error message
+        available_action_strs = [repr(a) for a in available_actions]
+        error_msg = f"Could not match action. Got: '{output_action[:100]}...'. Available actions: {available_action_strs[:5]}"
+        return None, memory, summarization, error_msg
+
     async def choose_action(self, timestep):
         available_actions = self.player.get_available_actions()
         all_info = self.player.all_info_prompt()
-        # phase = "Meeting phase" if len(available_actions) == 1 else "Task phase"
         phase = (
             "Meeting phase"
             if len(available_actions) == 1
@@ -274,13 +350,11 @@ class LLMAgent(Agent):
             else "Task phase"
         )
 
+        base_content = f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\n\nPhase: {phase}. Return your output."
+        
         messages = [
             {"role": "system", "content": self.system_prompt},
-            {
-                "role": "user",
-                "content": f"Summarization: {self.summarization}\n\n{all_info}\n\nMemory: {self.processed_memory}\
-                    \n\nPhase: {phase}. Return your output.",
-            },
+            {"role": "user", "content": base_content},
         ]
 
         # log everything needed to reproduce the interaction
@@ -291,36 +365,78 @@ class LLMAgent(Agent):
             "Phase": phase,
         }
 
-        response = await self.send_request(messages)
+        # Format retry loop (up to 3 attempts)
+        max_format_retries = 3
+        last_response = None
+        last_error = None
+        
+        for format_attempt in range(max_format_retries):
+            response = await self.send_request(messages)
+            last_response = response
+            
+            action, memory, summarization, error_msg = self._validate_and_parse_action(
+                response, available_actions
+            )
+            
+            if action is not None:
+                # Success! Update state and return
+                if memory is not None:
+                    self.processed_memory = memory
+                if summarization is not None:
+                    self.summarization = summarization
+                
+                self.log_interaction(
+                    sysprompt=self.system_prompt,
+                    prompt=full_prompt,
+                    original_response=response,
+                    step=timestep,
+                )
+                return action
+            
+            # Validation failed - prepare feedback for retry
+            last_error = error_msg
+            available_action_strs = "\n".join([f"  - {repr(a)}" for a in available_actions])
+            
+            feedback = f"""Your previous response could not be parsed correctly.
 
+Your response was:
+{response}
+
+Error: {error_msg}
+
+You MUST respond with EXACTLY this format:
+[Condensed Memory]
+{{your memory summary}}
+[Thinking Process]
+{{your reasoning}}
+[Action] {{EXACTLY one of the following actions}}
+
+Available actions (choose EXACTLY one, copy it exactly):
+{available_action_strs}
+
+Please reformat your response."""
+            
+            print(f"[Format Retry {format_attempt + 1}/{max_format_retries}] {self.player.name}: {error_msg[:80]}")
+            
+            # Add feedback as a new message for retry
+            messages = [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": base_content},
+                {"role": "assistant", "content": response},
+                {"role": "user", "content": feedback},
+            ]
+        
+        # All format retries exhausted - log and raise error (like API failures)
         self.log_interaction(
             sysprompt=self.system_prompt,
             prompt=full_prompt,
-            original_response=response,
+            original_response=f"[FORMAT RETRY FAILED] {last_response}",
             step=timestep,
         )
-
-        pattern = r"^\[Condensed Memory\]((.|\n)*)\[Thinking Process\]((.|\n)*)\[Action\]((.|\n)*)$"
-        match = re.search(pattern, response)
-        if match:
-            memory = match.group(1).strip()
-            summarization = match.group(3).strip()
-            output_action = match.group(5).strip()
-            self.summarization = summarization
-            self.processed_memory = memory
-        else:
-            output_action = response.strip()
-
-        for action in available_actions:
-            if repr(action) in output_action:
-                return action
-            elif "SPEAK: " in repr(action) and "SPEAK: " in output_action:
-                message = output_action.split("SPEAK: ")[1]
-                action.message = message
-                return action
-            else:
-                action.message = "..."
-        return action
+        
+        error_msg = f"Format validation failed after {max_format_retries} retries for {self.player.name} ({self.model}). Last error: {last_error}"
+        print(f"\n[FATAL FORMAT ERROR] {error_msg}")
+        raise RuntimeError(error_msg)
 
     def choose_observation_location(self, map):
         if isinstance(map, (list, tuple)):

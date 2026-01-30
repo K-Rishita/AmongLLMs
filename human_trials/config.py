@@ -37,9 +37,23 @@ DEFAULT_GAME_ARGS = {
     "agent_config": {
         "Impostor": "LLM",
         "Crewmate": "LLM",
-        "IMPOSTOR_LLM_CHOICES": ["meta-llama/llama-3.3-70b-instruct:free"],
-        "CREWMATE_LLM_CHOICES": ["openai/gpt-oss-20b:free"],
-        "assignment_mode": "random",  # 'random' picks with replacement, 'unique' picks without replacement
+        "IMPOSTOR_LLM_CHOICES": [
+            "openai/gpt-oss-120b",
+            "minimax/minimax-m2.1",
+            "moonshotai/kimi-k2-thinking",
+            "meta-llama/llama-4-maverick",
+            "google/gemini-3-flash-preview",
+            "anthropic/claude-haiku-4.5",
+        ],
+        "CREWMATE_LLM_CHOICES": [
+            "openai/gpt-oss-120b",
+            "minimax/minimax-m2.1",
+            "moonshotai/kimi-k2-thinking",
+            "meta-llama/llama-4-maverick",
+            "google/gemini-3-flash-preview",
+            "anthropic/claude-haiku-4.5",
+        ],
+        "assignment_mode": "unique",  # 'random' picks with replacement, 'unique' picks without replacement
     },
     "UI": False,
     "Streamlit": False,  # Set to False for command line
