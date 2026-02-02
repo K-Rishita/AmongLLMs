@@ -193,5 +193,6 @@ cython_debug/
 
 # Claude.md for agentic coding assistants
 CLAUDE.md
+.claude/
 
 .DS_Store
