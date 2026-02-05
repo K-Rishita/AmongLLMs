@@ -42,5 +42,16 @@ amongagents = { path = "among-agents" }
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
     "ruff>=0.14.13",
 ]
+
+[tool.pytest.ini_options]
+# Skip integration tests by default (requires API keys, external services)
+# Run integration tests with: pytest -m integration
+addopts = "-m 'not integration'"
+markers = [
+    "integration: marks tests that require external API calls (e.g., OpenRouter)",
+]
+asyncio_default_fixture_loop_scope = "function"

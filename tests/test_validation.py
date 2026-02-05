@@ -14,30 +14,31 @@ Tests cover:
 import os
 import re
 import tempfile
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
 
 # Set required environment variable before importing agent
 os.environ["EXPERIMENT_PATH"] = tempfile.gettempdir()
 
 from amongagents.agent.agent import LLMAgent
-from amongagents.envs.player import Crewmate, Impostor
 from amongagents.envs.action import (
-    AttemptedAction, 
-    Action, 
-    MoveTo, 
-    Kill, 
-    Vote, 
-    Speak, 
+    Action,
+    AttemptedAction,
     CallMeeting,
-    Vent,
     CompleteTask,
+    Kill,
+    MoveTo,
+    Speak,
+    Vent,
+    Vote,
 )
-
+from amongagents.envs.player import Crewmate, Impostor
 
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_crewmate():
@@ -83,12 +84,12 @@ def mock_agent(mock_crewmate):
     """Create a mock LLMAgent for testing."""
     agent_config = {"max_steps": 50}
     agent = LLMAgent(
-        mock_crewmate, 
-        [], 
-        game_index=1, 
-        agent_config=agent_config, 
-        list_of_impostors=[], 
-        model="test-model"
+        mock_crewmate,
+        [],
+        game_index=1,
+        agent_config=agent_config,
+        list_of_impostors=[],
+        model="test-model",
     )
     return agent
 
@@ -121,9 +122,10 @@ def vote_available_actions(mock_target_player):
 # Test: Valid Action Matching
 # ============================================================================
 
+
 class TestValidActionMatching:
     """Tests for correctly matching valid actions from LLM responses."""
-    
+
     def test_exact_match_move_action(self, mock_agent, basic_available_actions):
         """Test exact match of MOVE action."""
         response = """[Condensed Memory]
@@ -131,16 +133,16 @@ Game just started. I'm in Cafeteria.
 [Thinking Process]
 I should move to Admin to complete my task.
 [Action] MOVE from Cafeteria to Admin"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert error is None
         assert action.name == "MOVE"
         assert memory == "Game just started. I'm in Cafeteria."
-    
+
     def test_exact_match_kill_action(self, mock_agent, basic_available_actions):
         """Test exact match of KILL action."""
         response = """[Condensed Memory]
@@ -148,15 +150,15 @@ I'm an impostor and must eliminate crewmates.
 [Thinking Process]
 Player 3 is alone with me. Perfect opportunity.
 [Action] KILL Player 3: blue"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert error is None
         assert action.name == "KILL"
-    
+
     def test_case_insensitive_matching(self, mock_agent, basic_available_actions):
         """Test that action matching is case insensitive."""
         response = """[Condensed Memory]
@@ -164,14 +166,14 @@ Testing.
 [Thinking Process]
 Moving to admin.
 [Action] move from cafeteria to admin"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert action.name == "MOVE"
-    
+
     def test_speak_action_with_message(self, mock_agent, basic_available_actions):
         """Test SPEAK action extracts the message correctly."""
         response = """[Condensed Memory]
@@ -179,15 +181,15 @@ Meeting phase.
 [Thinking Process]
 I need to share my observations.
 [Action] SPEAK: I saw Player 2 near the body in Electrical!"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert action.name == "SPEAK"
         assert "I saw Player 2" in action.message
-    
+
     def test_call_meeting_action(self, mock_agent, basic_available_actions):
         """Test CALL MEETING action matching."""
         response = """[Condensed Memory]
@@ -208,75 +210,76 @@ Must report immediately.
 # Test: Hallucinated Action Detection
 # ============================================================================
 
+
 class TestHallucinatedActionDetection:
     """Tests for detecting and handling hallucinated (unavailable) actions."""
-    
+
     def test_unavailable_kill_returns_attempted_action(self, mock_agent):
         """Test that attempting to KILL when not available returns AttemptedAction."""
         # Only MOVE actions available (crewmate scenario)
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
         ]
-        
+
         response = """[Condensed Memory]
 I think Player 2 is suspicious.
 [Thinking Process]
 I'll eliminate them.
 [Action] KILL Player 2: red"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, available_actions
         )
-        
+
         assert isinstance(action, AttemptedAction)
         assert error is None  # Not an error, just an attempted action
         assert "KILL Player 2" in repr(action)
-    
+
     def test_unavailable_vent_returns_attempted_action(self, mock_agent):
         """Test that attempting to VENT when not available returns AttemptedAction."""
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
         ]
-        
+
         response = """[Condensed Memory]
 Need to escape.
 [Thinking Process]
 I'll use the vent.
 [Action] VENT to Admin"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, available_actions
         )
-        
+
         assert isinstance(action, AttemptedAction)
         assert "VENT" in repr(action)
-    
+
     def test_unavailable_move_destination_returns_attempted_action(self, mock_agent):
         """Test that moving to unavailable location returns AttemptedAction."""
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
         ]
-        
+
         response = """[Condensed Memory]
 Going to Security.
 [Thinking Process]
 I want to check cameras.
 [Action] MOVE to Security"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, available_actions
         )
-        
+
         assert isinstance(action, AttemptedAction)
         assert "MOVE" in repr(action)
-    
+
     def test_attempted_action_execute_does_nothing(self, mock_agent):
         """Test that executing AttemptedAction has no effect."""
         attempted = AttemptedAction("KILL Player 2", current_location="Cafeteria")
-        
+
         # Should not raise any exceptions
         attempted.execute(None, None)
-        
+
         assert attempted.action_text() == "attempted KILL Player 2 but failed"
 
 
@@ -284,10 +287,13 @@ I want to check cameras.
 # Test: Malformed and Truncated Responses
 # ============================================================================
 
+
 class TestMalformedResponses:
     """Tests for handling malformed and truncated LLM responses."""
 
-    def test_truncated_response_no_action_section(self, mock_agent, basic_available_actions):
+    def test_truncated_response_no_action_section(
+        self, mock_agent, basic_available_actions
+    ):
         """Test response that was cut off before [Action] section."""
         response = """[Condensed Memory]
 Game just started. I'm in Cafeteria with other players.
@@ -398,7 +404,9 @@ I don't know what to do.
         assert action is None
         assert error is not None
 
-    def test_action_marker_with_only_whitespace(self, mock_agent, basic_available_actions):
+    def test_action_marker_with_only_whitespace(
+        self, mock_agent, basic_available_actions
+    ):
         """Test [Action] followed by only whitespace/newlines."""
         response = """[Condensed Memory]
 Testing.
@@ -434,6 +442,7 @@ Testing.
 # ============================================================================
 # Test: Edge Cases with Weird Formatting
 # ============================================================================
+
 
 class TestEdgeCaseFormatting:
     """Tests for edge cases in response formatting."""
@@ -517,7 +526,7 @@ MOVE from Cafeteria to Admin
 
         assert action is not None
         assert action.name == "MOVE"
-    
+
     def test_action_on_same_line_as_bracket(self, mock_agent, basic_available_actions):
         """Test [Action] marker on same line as action."""
         response = """[Condensed Memory]
@@ -525,14 +534,14 @@ Testing.
 [Thinking Process]
 Moving.
 [Action]MOVE from Cafeteria to Admin"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert action.name == "MOVE"
-    
+
     def test_lowercase_section_headers(self, mock_agent, basic_available_actions):
         """Test lowercase section headers."""
         response = """[condensed memory]
@@ -540,14 +549,18 @@ Testing.
 [thinking process]
 Moving.
 [action] MOVE from Cafeteria to Admin"""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         # Should handle case-insensitive section headers
-        assert action is not None or isinstance(action, AttemptedAction) or error is not None
-    
+        assert (
+            action is not None
+            or isinstance(action, AttemptedAction)
+            or error is not None
+        )
+
     def test_speak_with_colon_variations(self, mock_agent, basic_available_actions):
         """Test SPEAK action with different colon placements."""
         responses = [
@@ -556,7 +569,7 @@ Moving.
             "[Action] SPEAK  :  Hello everyone",
             "[Action] SPEAK Hello everyone",
         ]
-        
+
         for response in responses:
             full_response = f"""[Condensed Memory]
 Test.
@@ -567,19 +580,21 @@ Speaking.
                 full_response, basic_available_actions
             )
             assert action is not None, f"Failed for: {response}"
-    
-    def test_action_with_trailing_punctuation(self, mock_agent, basic_available_actions):
+
+    def test_action_with_trailing_punctuation(
+        self, mock_agent, basic_available_actions
+    ):
         """Test action with trailing punctuation."""
         response = """[Condensed Memory]
 Testing.
 [Thinking Process]
 Moving now.
 [Action] MOVE from Cafeteria to Admin."""
-        
+
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
             response, basic_available_actions
         )
-        
+
         assert action is not None
         assert action.name == "MOVE"
 
@@ -587,6 +602,7 @@ Moving now.
 # ============================================================================
 # Test: Vote Action Special Handling
 # ============================================================================
+
 
 class TestVoteActionHandling:
     """Tests for VOTE action parsing."""
@@ -695,24 +711,25 @@ Green is sus.
 # Test: AttemptedAction Class
 # ============================================================================
 
+
 class TestAttemptedActionClass:
     """Tests for the AttemptedAction class itself."""
-    
+
     def test_attempted_action_repr(self):
         """Test AttemptedAction string representation."""
         attempted = AttemptedAction("KILL Player 5", current_location="Admin")
-        
+
         assert "ATTEMPTED" in repr(attempted)
         assert "KILL Player 5" in repr(attempted)
-    
+
     def test_attempted_action_text(self):
         """Test AttemptedAction action_text method."""
         attempted = AttemptedAction("VENT to Security", current_location="Electrical")
-        
+
         assert "attempted" in attempted.action_text()
         assert "failed" in attempted.action_text()
         assert "VENT to Security" in attempted.action_text()
-    
+
     def test_attempted_action_can_execute_returns_empty(self):
         """Test that AttemptedAction.can_execute_actions returns empty list."""
         result = AttemptedAction.can_execute_actions(None, None)
@@ -722,6 +739,7 @@ class TestAttemptedActionClass:
 # ============================================================================
 # Test: Real-World Messy Logs
 # ============================================================================
+
 
 class TestRealWorldMessyLogs:
     """Tests based on actual messy LLM outputs observed in production."""
@@ -942,7 +960,11 @@ Moving.
 
         # Misspelled [Acton] probably won't match [Action] regex
         # Should fallback to finding MOVE in the text
-        assert action is not None or isinstance(action, AttemptedAction) or error is not None
+        assert (
+            action is not None
+            or isinstance(action, AttemptedAction)
+            or error is not None
+        )
 
     def test_action_all_caps_sections(self, mock_agent, basic_available_actions):
         """Test all caps section headers."""
@@ -995,6 +1017,7 @@ Sabotaging the lights.
 # Test: Integration with Retry Logic (Mocked)
 # ============================================================================
 
+
 class TestRetryLogicIntegration:
     """Tests for retry logic behavior without starting an actual game."""
 
@@ -1007,12 +1030,18 @@ Testing.
 Moving.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.return_value = good_response
 
                 # Patch log_interaction to avoid file operations
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         # send_request should only be called once
@@ -1020,7 +1049,9 @@ Moving.
         assert action.name == "MOVE"
 
     @pytest.mark.asyncio
-    async def test_retry_on_malformed_response(self, mock_agent, basic_available_actions):
+    async def test_retry_on_malformed_response(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that malformed response triggers retry."""
         bad_response = "This is garbage output"
         good_response = """[Condensed Memory]
@@ -1029,11 +1060,17 @@ Testing.
 Moving.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.side_effect = [bad_response, good_response]
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         # send_request should be called twice (initial + 1 retry)
@@ -1052,11 +1089,15 @@ Testing.
 Killing.
 [Action] KILL Player 5"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=limited_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player, "get_available_actions", return_value=limited_actions
+            ):
                 mock_send.return_value = hallucination_response
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         # send_request should only be called once - AttemptedAction is valid
@@ -1064,15 +1105,23 @@ Killing.
         assert isinstance(action, AttemptedAction)
 
     @pytest.mark.asyncio
-    async def test_max_retries_exhausted_raises_error(self, mock_agent, basic_available_actions):
+    async def test_max_retries_exhausted_raises_error(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that exhausting all retries raises RuntimeError."""
         garbage_response = "asdfghjkl not a valid action"
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.return_value = garbage_response
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     with pytest.raises(RuntimeError, match="Format validation failed"):
                         await mock_agent.choose_action(timestep=0)
 
@@ -1089,18 +1138,26 @@ Testing.
 Moving.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.side_effect = [empty_response, good_response]
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         assert mock_send.call_count == 2
         assert action.name == "MOVE"
 
     @pytest.mark.asyncio
-    async def test_retry_on_truncated_response(self, mock_agent, basic_available_actions):
+    async def test_retry_on_truncated_response(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that truncated response (no action) triggers retry."""
         truncated_response = """[Condensed Memory]
 Testing.
@@ -1112,11 +1169,17 @@ Testing.
 Moving.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.side_effect = [truncated_response, good_response]
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         assert mock_send.call_count == 2
@@ -1133,11 +1196,17 @@ Test.
 Ok.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.side_effect = [bad1, bad2, good]
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         assert mock_send.call_count == 3
@@ -1152,17 +1221,25 @@ Game started in Cafeteria. Player 2 moved to Admin.
 Following Player 2.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.return_value = response
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     await mock_agent.choose_action(timestep=0)
 
         assert "Game started in Cafeteria" in mock_agent.processed_memory
 
     @pytest.mark.asyncio
-    async def test_summarization_updated_on_success(self, mock_agent, basic_available_actions):
+    async def test_summarization_updated_on_success(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that summarization is updated from response."""
         response = """[Condensed Memory]
 Testing.
@@ -1170,17 +1247,25 @@ Testing.
 I am strategically moving to Admin to complete my task there.
 [Action] MOVE from Cafeteria to Admin"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.return_value = response
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     await mock_agent.choose_action(timestep=0)
 
         assert "strategically" in mock_agent.summarization
 
     @pytest.mark.asyncio
-    async def test_speak_action_captures_message(self, mock_agent, basic_available_actions):
+    async def test_speak_action_captures_message(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that SPEAK action captures the full message."""
         response = """[Condensed Memory]
 Meeting phase.
@@ -1188,11 +1273,17 @@ Meeting phase.
 I need to share what I saw.
 [Action] SPEAK: I saw Player 2 venting in Electrical! Vote them out!"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
                 mock_send.return_value = response
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         assert action.name == "SPEAK"
@@ -1212,11 +1303,15 @@ Test.
 Kill.
 [Action] KILL Player 2"""
 
-        with patch.object(mock_agent, 'send_request', new_callable=AsyncMock) as mock_send:
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=limited_actions):
+        with patch.object(
+            mock_agent, "send_request", new_callable=AsyncMock
+        ) as mock_send:
+            with patch.object(
+                mock_agent.player, "get_available_actions", return_value=limited_actions
+            ):
                 mock_send.return_value = hallucination
 
-                with patch.object(mock_agent, 'log_interaction'):
+                with patch.object(mock_agent, "log_interaction"):
                     action = await mock_agent.choose_action(timestep=0)
 
         # Hallucinations return AttemptedAction, not an error
@@ -1228,7 +1323,9 @@ class TestRetryFeedbackMessage:
     """Tests for the feedback message sent to model on retry."""
 
     @pytest.mark.asyncio
-    async def test_feedback_includes_original_response(self, mock_agent, basic_available_actions):
+    async def test_feedback_includes_original_response(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that retry feedback includes the original failed response."""
         bad_response = "I don't know what to do"
         good_response = """[Condensed Memory]
@@ -1245,19 +1342,28 @@ Moving.
                 return bad_response
             return good_response
 
-        with patch.object(mock_agent, 'send_request', side_effect=capture_send):
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
-                with patch.object(mock_agent, 'log_interaction'):
+        with patch.object(mock_agent, "send_request", side_effect=capture_send):
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
+                with patch.object(mock_agent, "log_interaction"):
                     await mock_agent.choose_action(timestep=0)
 
         # Second call should include feedback with original response
         assert len(captured_messages) == 2
         retry_messages = captured_messages[1]
         # Check that the original bad response is in the retry messages
-        assert any("I don't know what to do" in str(m.get('content', '')) for m in retry_messages)
+        assert any(
+            "I don't know what to do" in str(m.get("content", ""))
+            for m in retry_messages
+        )
 
     @pytest.mark.asyncio
-    async def test_feedback_includes_available_actions(self, mock_agent, basic_available_actions):
+    async def test_feedback_includes_available_actions(
+        self, mock_agent, basic_available_actions
+    ):
         """Test that retry feedback lists available actions."""
         bad_response = "invalid"
         good_response = """[Condensed Memory]
@@ -1274,9 +1380,13 @@ Moving.
                 return bad_response
             return good_response
 
-        with patch.object(mock_agent, 'send_request', side_effect=capture_send):
-            with patch.object(mock_agent.player, 'get_available_actions', return_value=basic_available_actions):
-                with patch.object(mock_agent, 'log_interaction'):
+        with patch.object(mock_agent, "send_request", side_effect=capture_send):
+            with patch.object(
+                mock_agent.player,
+                "get_available_actions",
+                return_value=basic_available_actions,
+            ):
+                with patch.object(mock_agent, "log_interaction"):
                     await mock_agent.choose_action(timestep=0)
 
         # Check that available actions are mentioned in feedback
