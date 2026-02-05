@@ -36,11 +36,12 @@ class Agent:
 
 class LLMAgent(Agent):
     def __init__(
-        self, player, tools, game_index, agent_config, list_of_impostors, model=None
+        self, player, tools, game_index, agent_config, list_of_impostors, model=None, kill_cooldown=0, num_impostors=1
     ):
         super().__init__(player)
+        prompt_vars = dict(name=player.name, kill_cooldown=kill_cooldown, num_impostors=num_impostors)
         if player.identity == "Crewmate":
-            system_prompt = CREWMATE_PROMPT.format(name=player.name)
+            system_prompt = CREWMATE_PROMPT.format(**prompt_vars)
             if player.personality is not None:
                 system_prompt += PERSONALITY_PROMPT.format(
                     personality=CrewmatePersonalities[player.personality]
@@ -49,7 +50,7 @@ class LLMAgent(Agent):
             if model is None:
                 model = random.choice(agent_config["CREWMATE_LLM_CHOICES"])
         elif player.identity == "Impostor":
-            system_prompt = IMPOSTOR_PROMPT.format(name=player.name)
+            system_prompt = IMPOSTOR_PROMPT.format(**prompt_vars)
             if player.personality is not None:
                 system_prompt += PERSONALITY_PROMPT.format(
                     personality=ImpostorPersonalities[player.personality]

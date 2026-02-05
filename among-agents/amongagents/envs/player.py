@@ -187,3 +187,10 @@ class Impostor(Player):
         super().__init__(*args, **kwargs, identity="Impostor")
         self.SPECIAL_ACTIONS = IMPOSTER_ACTIONS
         self.kill_cooldown = 0
+
+    def available_actions_prompt(self):
+        text = ""
+        if self.kill_cooldown > 0:
+            text += f"KILL is on cooldown ({self.kill_cooldown} timestep{'s' if self.kill_cooldown != 1 else ''} remaining).\n"
+        text += super().available_actions_prompt()
+        return text

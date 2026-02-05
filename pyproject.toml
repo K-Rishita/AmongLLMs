@@ -38,7 +38,7 @@ all = [
 ]
 
 [tool.uv.sources]
-amongagents = { path = "among-agents" }
+amongagents = { path = "among-agents", editable = true }
 
 [dependency-groups]
 dev = [

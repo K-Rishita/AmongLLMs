@@ -199,6 +199,8 @@ class AmongUs:
                     self.agent_config,
                     self.list_of_impostors,
                     model=model,
+                    kill_cooldown=self.game_config["kill_cooldown"],
+                    num_impostors=self.game_config["num_impostors"],
                 ),
                 "Random": lambda player, model=None: RandomAgent(player),
             }

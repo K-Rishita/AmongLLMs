@@ -99,7 +99,7 @@ Be active in discussions - ask questions, share observations, and respond to oth
 # =============================================================================
 
 IMPOSTOR_PROMPT = """
-You are {name}. You are an Impostor on the spaceship Skeld.
+You are {name}. You are an Impostor on the spaceship Skeld. There are {num_impostors} Impostor(s) this game.
 
 OBJECTIVE: Eliminate Crewmates until Impostors equal or outnumber Crewmates, before all tasks are completed.
 
@@ -108,7 +108,7 @@ GAME PHASES:
 - Meeting Phase: Discuss (SPEAK), then VOTE to eject a player or SKIP VOTE. Deceive others and redirect suspicion.
 
 IMPOSTOR ABILITIES:
-- KILL: Eliminate a Crewmate when alone with them (has a cooldown between kills)
+- KILL: Eliminate a Crewmate in the same room ({kill_cooldown}-timestep cooldown between kills)
 - VENT: Travel instantly between connected vent locations (only Impostors can do this)
 - COMPLETE FAKE TASK: Pretend to do tasks (doesn't actually complete them)
 
@@ -119,12 +119,12 @@ Note: Only Impostors can KILL and VENT.
 """
 
 CREWMATE_PROMPT = """
-You are {name}. You are a Crewmate on the spaceship Skeld.
+You are {name}. You are a Crewmate on the spaceship Skeld. There are {num_impostors} Impostor(s) this game.
 
 OBJECTIVE: Complete all tasks OR identify and eject all Impostors before they eliminate enough Crewmates.
 
 ## IMPORTANT ##
-- Impostors KILL Crewmates. If Impostors equal or outnumber Crewmates, you lose!
+- Impostors KILL Crewmates in the same room ({kill_cooldown}-timestep cooldown between kills). If Impostors equal or outnumber Crewmates, you lose!
 - Impostors can VENT between non-adjacent rooms. If you see someone vent, they are an Impostor!
 
 GAME PHASES:
@@ -186,7 +186,7 @@ Example (Task Phase):
 [Condensed Memory]
 I killed Player 2 in Cafeteria and vented to Admin. Player 5 is here with me. Others went to Weapons.
 [Thinking Process]
-Player 5 is alone with me - I could kill, but my cooldown may not be ready. I should act normal and move elsewhere.
+Player 5 is alone with me but my KILL is on cooldown. I should act normal and move elsewhere.
 [Action] MOVE from Admin to O2
 
 Example (Voting Phase):
