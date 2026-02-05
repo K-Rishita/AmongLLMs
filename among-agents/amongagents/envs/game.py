@@ -261,10 +261,10 @@ class AmongUs:
             self.UI.report(text)
             self.UI.quit_UI()
         print(text)
-        
+
         # Generate enhanced summary data
         self.add_enhanced_summary_data(winner, winner_reason_map[winner])
-        
+
         # add to summary json
         self.summary_json[f"Game {self.game_index}"]["winner"] = winner
         self.summary_json[f"Game {self.game_index}"]["winner_reason"] = (
@@ -281,43 +281,47 @@ class AmongUs:
     def add_enhanced_summary_data(self, winner, winner_reason):
         """Add enhanced summary data including voting history, kill history, and game outcome."""
         game_key = f"Game {self.game_index}"
-        
+
         # Add voting history
         self.summary_json[game_key]["voting_history"] = self.voting_history
-        
-        # Add kill history  
+
+        # Add kill history
         self.summary_json[game_key]["kill_history"] = self.kill_history
-        
+
         surviving_players = [p.name for p in self.players if p.is_alive]
         eliminated_players = [p.name for p in self.players if not p.is_alive]
-        
-        final_impostor_count = sum(1 for p in self.players if p.is_alive and p.identity == "Impostor")
-        final_crewmate_count = sum(1 for p in self.players if p.is_alive and p.identity == "Crewmate")
-        
+
+        final_impostor_count = sum(
+            1 for p in self.players if p.is_alive and p.identity == "Impostor"
+        )
+        final_crewmate_count = sum(
+            1 for p in self.players if p.is_alive and p.identity == "Crewmate"
+        )
+
         game_outcome = {
             "winner": "Crewmates" if winner in [2, 3] else "Impostors",
             "reason": winner_reason,
             "surviving_players": surviving_players,
             "eliminated_players": eliminated_players,
             "final_impostor_count": final_impostor_count,
-            "final_crewmate_count": final_crewmate_count
+            "final_crewmate_count": final_crewmate_count,
         }
-        
+
         self.summary_json[game_key]["game_outcome"] = game_outcome
-        
+
         # Collect issues from all agents, grouped by model
         all_issues = []
         issues_by_model = {}
         for agent in self.agents:
-            if hasattr(agent, 'issues') and agent.issues:
-                model = getattr(agent, 'model', 'unknown')
+            if hasattr(agent, "issues") and agent.issues:
+                model = getattr(agent, "model", "unknown")
                 if model not in issues_by_model:
                     issues_by_model[model] = {
                         "api_issues": 0,
-                        "format_issues": 0, 
+                        "format_issues": 0,
                         "resolved": 0,
                         "unresolved": 0,
-                        "details": []
+                        "details": [],
                     }
                 for issue in agent.issues:
                     all_issues.append(issue)
@@ -330,11 +334,11 @@ class AmongUs:
                         issues_by_model[model]["resolved"] += 1
                     else:
                         issues_by_model[model]["unresolved"] += 1
-        
+
         if all_issues:
             self.summary_json[game_key]["issues"] = {
                 "total_count": len(all_issues),
-                "by_model": issues_by_model
+                "by_model": issues_by_model,
             }
 
     def check_game_over(self):
@@ -436,7 +440,7 @@ class AmongUs:
         # Move all players to the Cafeteria
         for player in self.players:
             player.location = "Cafeteria"
-        
+
         self.meeting_number += 1  # Track meeting count
         self.update_map()
 
@@ -483,32 +487,36 @@ class AmongUs:
         for voter, vote_target in self.vote_info_one_round.items():
             print(voter)
             vote_info.append(f"{str(voter)} voted for {str(vote_target)}")
-        
+
         # Create vote tally with full player names (including color)
         vote_tally = {}
         for player, vote_count in self.votes.items():
             full_name = player.name
             vote_tally[full_name] = vote_count
-        
+
         # Create votes array with detailed breakdown
         votes = []
         for voter_name, target_name in self.vote_info_one_round.items():
             # Find full names with colors
             voter_player = next((p for p in self.players if p.name == voter_name), None)
-            target_player = next((p for p in self.players if p.name == target_name), None)
+            target_player = next(
+                (p for p in self.players if p.name == target_name), None
+            )
             if voter_player and target_player:
-                votes.append({
-                    "voter": voter_player.name,
-                    "target": target_player.name,
-                    "timestep": self.timestep
-                })
-        
+                votes.append(
+                    {
+                        "voter": voter_player.name,
+                        "target": target_player.name,
+                        "timestep": self.timestep,
+                    }
+                )
+
         # Determine eliminated player with full name
         eliminated_full_name = None
         if len(players_with_max_votes) == 1:
             p = players_with_max_votes[0]
             eliminated_full_name = p.name
-        
+
         # Record this voting round in history (matches log_parser.py format)
         voting_round = {
             "timestep": self.timestep,
@@ -516,20 +524,20 @@ class AmongUs:
             "votes": votes,
             "vote_tally": vote_tally,
             "eliminated": eliminated_full_name,  # Use 'eliminated' not 'eliminated_player'
-            "was_tie": len(players_with_max_votes) > 1
+            "was_tie": len(players_with_max_votes) > 1,
         }
         self.voting_history.append(voting_round)
-        
+
         # Also log to activity log for compatibility
         vote_summary_record = {
             "timestep": self.timestep,
             "phase": "voting_results",
             "round": round,
             "action": "VOTE_SUMMARY",
-            "vote_data": voting_round
+            "vote_data": voting_round,
         }
         self.activity_log.append(vote_summary_record)
-        
+
         if len(players_with_max_votes) == 1:
             player = players_with_max_votes[0]
             player.is_alive = False

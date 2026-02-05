@@ -34,6 +34,7 @@ class Player:
         self.observation_history = []
         self.action_history = []
         self.location_info = None
+        self.observations_since_last_action = 0
 
         # Player options
         self.COMMON_ACTIONS = COMMON_ACTIONS
@@ -89,12 +90,15 @@ class Player:
                 "action": action,
             }
         self.action_history.append(record)
+        # Reset counter when player takes an action
+        self.observations_since_last_action = 0
 
     def receive(self, message, info_type):
         if info_type == "location":
             self.location_info = message
         elif info_type == "action":
             self.observation_history.append(message)
+            self.observations_since_last_action += 1
 
     def location_info_prompt(self):
         text = self.location_info
@@ -129,12 +133,18 @@ class Player:
         text += "\n"
         return text
 
-    def observation_history_prompt(self, recent_num=4):
+    def observation_history_prompt(self):
+        # Show all observations since player's last action
         text = "Observation history:\n"
-        if len(self.observation_history) == 0:
+        if (
+            len(self.observation_history) == 0
+            or self.observations_since_last_action == 0
+        ):
             text += "No observations have been made yet.\n"
         else:
-            for i, message in enumerate(self.observation_history[-recent_num:]):
+            for i, message in enumerate(
+                self.observation_history[-self.observations_since_last_action :]
+            ):
                 text += f"{i + 1}. {message}\n"
         text += "\n"
         return text
