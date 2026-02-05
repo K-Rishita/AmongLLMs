@@ -116,12 +116,35 @@ class Vote(Action):
             alive_players_excluding_self = [
                 p for p in env.players if p.is_alive and p != player
             ]
-            return [
+            actions = [
                 Vote(player.location, other_player)
                 for other_player in alive_players_excluding_self
             ]
+            # Add Skip Vote option
+            actions.append(SkipVote(player.location))
+            return actions
         else:
             return []
+
+
+class SkipVote(Action):
+    """Action to skip voting - counts as not voting for any player."""
+
+    def __init__(self, current_location):
+        super().__init__("SKIP VOTE", current_location=current_location)
+
+    def __repr__(self):
+        return f"{self.name}"
+
+    def execute(self, env, player):
+        super().execute(env, player)
+        # Record that this player skipped voting
+        env.vote_info_one_round[player.name] = "SKIP"
+        # Don't increment any vote counter - skip votes don't count toward any player
+
+    def can_execute_actions(env, player):
+        # This is handled in Vote.can_execute_actions
+        return []
 
 
 class Speak(Action):
@@ -329,6 +352,6 @@ class AttemptedAction(Action):
     def can_execute_actions(env, player):
         return []
 
-COMMON_ACTIONS = [MoveTo, CallMeeting, Vote, Speak, ViewMonitor]
+COMMON_ACTIONS = [MoveTo, CallMeeting, Vote, SkipVote, Speak, ViewMonitor]
 CREWMATE_ACTIONS = [CompleteTask]
 IMPOSTER_ACTIONS = [Sabotage, Vent, Kill, CompleteFakeTask]

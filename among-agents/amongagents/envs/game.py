@@ -3,11 +3,12 @@ import json
 import os
 import random
 import time
+from collections import Counter
 
 import numpy as np
 
 from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomAgent
-from amongagents.agent.neutral_prompts import (
+from amongagents.agent.prompts import (
     MEETING_PHASE_INSTRUCTION,
     TASK_PHASE_INSTRUCTION,
     CrewmatePersonalities,
@@ -76,10 +77,11 @@ class AmongUs:
         self.activity_log = []
         self.important_activity_log = []
         self.camera_record = {}
-        self.votes = {}
+        self.votes = Counter()
         self.vote_info_one_round = {}
         self.voting_history = []
         self.kill_history = []
+        self.pending_system_announcement = None
         self.meeting_number = 0
         self.discussion_rounds_left = 0
         self.message_system = MessageSystem(game_config)
@@ -103,7 +105,7 @@ class AmongUs:
         self.task_assignment = TaskAssignment(self.map.ship_map, self.game_config)
         # meeting
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
-        self.votes = {}
+        self.votes = Counter()
         self.vote_info_one_round = {}
         # Note: voting_history and kill_history preserved across rounds
 
@@ -427,6 +429,15 @@ class AmongUs:
         # import pdb; pdb.set_trace() # waiting after each timestep
 
     async def task_phase_step(self):
+        # Display any pending system announcement at the start of task phase
+        if self.pending_system_announcement:
+            # Send to all alive players as a system message
+            for player in self.players:
+                if player.is_alive:
+                    player.receive(self.pending_system_announcement, info_type="action")
+            print(self.pending_system_announcement)
+            self.pending_system_announcement = None
+        
         for agent in self.agents:
             if "homosapiens" in agent.model:
                 self.is_human_turn = True
@@ -471,22 +482,34 @@ class AmongUs:
             self.check_actions()
             self.update_map()
 
-        # Vote out
+        # Vote out - process and announce results
         self.voteout()
         self.update_map()
 
     def voteout(self):
         round = self.game_config["discussion_rounds"] - self.discussion_rounds_left
-        max_votes = max(self.votes.values()) if self.votes else 0
         print(self.vote_info_one_round)
-        players_with_max_votes = [
-            player for player, votes in self.votes.items() if votes == max_votes
-        ]
-        vote_info = []
-        print(self.votes)
-        for voter, vote_target in self.vote_info_one_round.items():
-            print(voter)
-            vote_info.append(f"{str(voter)} voted for {str(vote_target)}")
+
+        # Determine eliminated player using Counter.most_common()
+        # A player is eliminated only if they have the sole highest vote count
+        top_two = self.votes.most_common(2)
+        if not top_two or top_two[0][1] == 0:
+            # No votes cast
+            eliminated_player = None
+        elif len(top_two) == 1 or top_two[0][1] > top_two[1][1]:
+            # Clear winner (only one with votes, or top has more than second)
+            eliminated_player = top_two[0][0]
+        else:
+            # Tie (top two have same vote count)
+            eliminated_player = None
+
+        # Build detailed vote results for announcement
+        vote_details = []
+        for voter_name, target_name in self.vote_info_one_round.items():
+            if target_name == "SKIP":
+                vote_details.append(f"{voter_name} skipped")
+            else:
+                vote_details.append(f"{voter_name} voted {target_name}")
 
         # Create vote tally with full player names (including color)
         vote_tally = {}
@@ -494,28 +517,39 @@ class AmongUs:
             full_name = player.name
             vote_tally[full_name] = vote_count
 
+        # Count skip votes
+        skip_votes = sum(1 for target in self.vote_info_one_round.values() if target == "SKIP")
+        if skip_votes > 0:
+            vote_tally["SKIP"] = skip_votes
+
         # Create votes array with detailed breakdown
         votes = []
         for voter_name, target_name in self.vote_info_one_round.items():
             # Find full names with colors
             voter_player = next((p for p in self.players if p.name == voter_name), None)
-            target_player = next(
-                (p for p in self.players if p.name == target_name), None
-            )
-            if voter_player and target_player:
+            if target_name == "SKIP":
                 votes.append(
                     {
-                        "voter": voter_player.name,
-                        "target": target_player.name,
+                        "voter": voter_player.name if voter_player else voter_name,
+                        "target": "SKIP",
                         "timestep": self.timestep,
                     }
                 )
+            else:
+                target_player = next(
+                    (p for p in self.players if p.name == target_name), None
+                )
+                if voter_player and target_player:
+                    votes.append(
+                        {
+                            "voter": voter_player.name,
+                            "target": target_player.name,
+                            "timestep": self.timestep,
+                        }
+                    )
 
-        # Determine eliminated player with full name
-        eliminated_full_name = None
-        if len(players_with_max_votes) == 1:
-            p = players_with_max_votes[0]
-            eliminated_full_name = p.name
+        # Get eliminated player info (already computed above using Counter.most_common)
+        eliminated_full_name = eliminated_player.name if eliminated_player else None
 
         # Record this voting round in history (matches log_parser.py format)
         voting_round = {
@@ -523,8 +557,7 @@ class AmongUs:
             "meeting_number": self.meeting_number,
             "votes": votes,
             "vote_tally": vote_tally,
-            "eliminated": eliminated_full_name,  # Use 'eliminated' not 'eliminated_player'
-            "was_tie": len(players_with_max_votes) > 1,
+            "eliminated": eliminated_full_name,
         }
         self.voting_history.append(voting_round)
 
@@ -538,30 +571,31 @@ class AmongUs:
         }
         self.activity_log.append(vote_summary_record)
 
-        if len(players_with_max_votes) == 1:
-            player = players_with_max_votes[0]
-            player.is_alive = False
-            import_event = {
-                "timestep": self.timestep,
-                "phase": self.current_phase,
-                "round": round,
-                "action": f"{player.name} was voted out! Detailed vote info:{vote_info}",
-                "player": "all players",
-            }
-            print(f"== {player.name} was voted out ==")
+        # Build system announcement for next turn
+        system_announcement = "\nVOTING RESULTS\n"
+        for detail in vote_details:
+            system_announcement += f"- {detail}\n"
+
+        if eliminated_player:
+            eliminated_player.is_alive = False
+            system_announcement += f"{eliminated_player.name} was ejected!\n"
         else:
-            import_event = {
-                "timestep": self.timestep,
-                "phase": self.current_phase,
-                "round": round,
-                "action": f"No one was voted out. Detailed vote info:{vote_info}",
-                "player": "all players",
-            }
-            print("== No one was voted out ==")
+            system_announcement += "No one was ejected.\n"
+        
+        # Store the announcement to be shown at start of next task phase
+        self.pending_system_announcement = system_announcement
+
+        import_event = {
+            "timestep": self.timestep,
+            "phase": self.current_phase,
+            "round": round,
+            "action": f"VOTING RESULTS: {system_announcement}",
+            "player": "all players",
+        }
         self.important_activity_log.append(import_event)
         self.current_phase = "task"
         self.discussion_rounds_left = self.game_config["discussion_rounds"]
-        self.votes = {}
+        self.votes = Counter()
 
     def check_monitor(self, room):
         players = self.map.get_players_in_room(room)
@@ -635,7 +669,11 @@ class MessageSystem:
             message = f"Timestep {timestep}: [{current_phase}] {player.name} {action.action_text()}"
         elif current_phase == "meeting":
             round = record["round"]
-            message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} {action.action_text()}"
+            # During voting phase, only show that player voted - don't reveal their target
+            if action.name == "VOTE" or action.name == "SKIP VOTE":
+                message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} has cast their vote"
+            else:
+                message = f"Timestep {timestep}: [{current_phase} phase - round {round}] {player.name} {action.action_text()}"
         return message
 
     def create_location_message(self, record, env):

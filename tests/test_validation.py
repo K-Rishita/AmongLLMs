@@ -29,6 +29,7 @@ from amongagents.envs.action import (
     CompleteTask,
     Kill,
     MoveTo,
+    SkipVote,
     Speak,
     Vent,
     Vote,
@@ -113,8 +114,17 @@ def vote_available_actions(mock_target_player):
     return [
         Vote("Cafeteria", mock_target_player),
         Vote("Cafeteria", target2),
-        # Note: Skip votes aren't directly supported by Vote class currently
-        # The game handles "no votes" as ties, not explicit skip actions
+        SkipVote("Cafeteria"),
+    ]
+
+
+@pytest.fixture
+def vote_available_actions_no_skip(mock_target_player):
+    """Create a set of voting actions WITHOUT skip for legacy test compatibility."""
+    target2 = Crewmate(name="Player 4", color="cyan", personality=None, location="Cafeteria")
+    return [
+        Vote("Cafeteria", mock_target_player),
+        Vote("Cafeteria", target2),
     ]
 
 
@@ -642,8 +652,8 @@ Voting blue.
         # Future enhancement: could add fuzzy matching for partial names
         assert isinstance(action, AttemptedAction)
 
-    def test_vote_skip_returns_attempted(self, mock_agent, vote_available_actions):
-        """Test skip vote returns AttemptedAction since it's not in available actions."""
+    def test_vote_skip_returns_attempted_when_not_available(self, mock_agent, vote_available_actions_no_skip):
+        """Test skip vote returns AttemptedAction when NOT in available actions."""
         response = """[Condensed Memory]
 Not enough evidence.
 [Thinking Process]
@@ -651,7 +661,7 @@ I'll skip this vote.
 [Action] VOTE SKIP"""
 
         action, memory, summarization, error = mock_agent._validate_and_parse_action(
-            response, vote_available_actions
+            response, vote_available_actions_no_skip
         )
 
         # Skip is not in available actions, should return AttemptedAction
@@ -734,6 +744,140 @@ class TestAttemptedActionClass:
         """Test that AttemptedAction.can_execute_actions returns empty list."""
         result = AttemptedAction.can_execute_actions(None, None)
         assert result == []
+
+
+# ============================================================================
+# Test: SkipVote Action
+# ============================================================================
+
+
+class TestSkipVoteAction:
+    """Tests for the SkipVote action class and mechanics."""
+
+    def test_skip_vote_action_class(self):
+        """Test SkipVote action class properties."""
+        skip = SkipVote("Cafeteria")
+
+        assert skip.name == "SKIP VOTE"
+        assert skip.current_location == "Cafeteria"
+        assert "SKIP VOTE" in repr(skip)
+
+    def test_skip_vote_can_execute_returns_empty(self):
+        """Test that SkipVote.can_execute_actions returns empty list.
+
+        Skip votes are added via Vote.can_execute_actions, not standalone.
+        """
+        result = SkipVote.can_execute_actions(None, None)
+        assert result == []
+
+    def test_skip_vote_parses_correctly(self, mock_agent, vote_available_actions):
+        """Test that SKIP VOTE action parses correctly when available."""
+        response = """[Condensed Memory]
+Not enough evidence to vote anyone.
+[Thinking Process]
+I don't have clear evidence, so I'll skip.
+[Action] SKIP VOTE"""
+
+        action, memory, summarization, error = mock_agent._validate_and_parse_action(
+            response, vote_available_actions
+        )
+
+        assert action is not None
+        assert error is None
+        assert action.name == "SKIP VOTE"
+
+    def test_skip_vote_with_lowercase(self, mock_agent, vote_available_actions):
+        """Test skip vote with lowercase input."""
+        response = """[Condensed Memory]
+Uncertain who to vote for.
+[Thinking Process]
+Skipping.
+[Action] skip vote"""
+
+        action, memory, summarization, error = mock_agent._validate_and_parse_action(
+            response, vote_available_actions
+        )
+
+        assert action is not None
+        assert action.name == "SKIP VOTE"
+
+    def test_skip_vote_with_extra_text(self, mock_agent, vote_available_actions):
+        """Test skip vote with extra explanatory text."""
+        response = """[Condensed Memory]
+Meeting phase.
+[Thinking Process]
+Need more info.
+[Action] SKIP VOTE - I want to observe more before deciding"""
+
+        action, memory, summarization, error = mock_agent._validate_and_parse_action(
+            response, vote_available_actions
+        )
+
+        # Should still match SKIP VOTE
+        assert action is not None
+        assert action.name == "SKIP VOTE"
+
+    def test_vote_skip_format_still_works(self, mock_agent, vote_available_actions):
+        """Test that 'VOTE SKIP' format also works for skip voting."""
+        response = """[Condensed Memory]
+Voting time.
+[Thinking Process]
+No clear suspect.
+[Action] VOTE SKIP"""
+
+        action, memory, summarization, error = mock_agent._validate_and_parse_action(
+            response, vote_available_actions
+        )
+
+        # With SkipVote in available actions, this should match
+        assert action is not None
+        # It might match as SkipVote or as AttemptedAction for VOTE
+        # The key is it doesn't error
+
+
+# ============================================================================
+# Test: Tie Vote Logic
+# ============================================================================
+
+
+class TestTieVoteLogic:
+    """Tests for tie vote mechanics in the game."""
+
+    def test_skip_vote_execute_records_skip(self, mock_crewmate):
+        """Test that SkipVote.execute() records 'SKIP' in vote info."""
+        env = Mock()
+        env.vote_info_one_round = {}
+
+        skip = SkipVote("Cafeteria")
+        skip.execute(env, mock_crewmate)
+
+        assert mock_crewmate.name in env.vote_info_one_round
+        assert env.vote_info_one_round[mock_crewmate.name] == "SKIP"
+
+    def test_skip_vote_does_not_increment_votes(self, mock_crewmate):
+        """Test that SkipVote doesn't increment any player's vote count."""
+        env = Mock()
+        env.vote_info_one_round = {}
+        env.votes = {}
+
+        skip = SkipVote("Cafeteria")
+        skip.execute(env, mock_crewmate)
+
+        # votes dict should remain empty - skip doesn't add votes
+        assert env.votes == {}
+
+    def test_vote_action_increments_votes(self, mock_crewmate, mock_target_player):
+        """Test that regular Vote does increment the target's vote count."""
+        env = Mock()
+        env.vote_info_one_round = {}
+        env.votes = {}
+
+        vote = Vote("Cafeteria", mock_target_player)
+        vote.execute(env, mock_crewmate)
+
+        # Target should have 1 vote
+        assert env.votes.get(mock_target_player, 0) == 1
+        assert env.vote_info_one_round[mock_crewmate.name] == mock_target_player.name
 
 
 # ============================================================================

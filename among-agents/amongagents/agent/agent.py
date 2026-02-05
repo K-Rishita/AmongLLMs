@@ -13,7 +13,7 @@ import numpy as np
 import requests
 
 from amongagents.envs.action import AttemptedAction
-from amongagents.agent.neutral_prompts import *
+from amongagents.agent.prompts import *
 
 # Set Flask environment variable to True by default
 if "FLASK" not in os.environ:
@@ -370,6 +370,11 @@ class LLMAgent(Agent):
                     vote_target = vote_match.group(1).strip().lower()
                     if hasattr(action, 'other_player') and action.other_player.name.lower() in vote_target:
                         return action, memory, summarization, None
+            
+            # Handle SKIP VOTE action specially
+            if action.name == "SKIP VOTE":
+                if "skip" in output_action_lower and "vote" in output_action_lower:
+                    return action, memory, summarization, None
         
         # Check for Attempted Illegal Actions (Hallucinations)
         # Define patterns for known game actions to catch likely hallucinations
@@ -378,6 +383,7 @@ class LLMAgent(Agent):
             (r"VENT\s+to\s+(.+)", "VENT"),
             (r"KILL\s+(.+)", "KILL"),
             (r"VOTE\s+(.+)", "VOTE"),
+            (r"SKIP\s+VOTE", "SKIP VOTE"),
             (r"COMPLETE\s+TASK\s+(.+)", "COMPLETE TASK"),
             (r"COMPLETE\s+FAKE\s+TASK\s+(.+)", "COMPLETE FAKE TASK"),
             (r"SABOTAGE\s+(.+)", "SABOTAGE"),
@@ -404,7 +410,7 @@ class LLMAgent(Agent):
         phase = (
             "Meeting phase"
             if len(available_actions) == 1
-            or all(a.name == "VOTE" for a in available_actions)
+            or all(a.name in ["VOTE", "SKIP VOTE"] for a in available_actions)
             else "Task phase"
         )
 
@@ -425,12 +431,10 @@ class LLMAgent(Agent):
 
         # Format retry loop (up to 3 attempts)
         max_format_retries = 3
-        last_response = None
         last_error = None
         
         for format_attempt in range(max_format_retries):
             response = await self.send_request(messages)
-            last_response = response
             
             action, memory, summarization, error_msg = self._validate_and_parse_action(
                 response, available_actions

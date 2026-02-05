@@ -26,6 +26,7 @@ class GetBestPath:
 class AgentResponse:
     valid_actions = [
         "VOTE",
+        "SKIP VOTE",
         "MOVE",
         "SPEAK",
         "CALL MEETING",
