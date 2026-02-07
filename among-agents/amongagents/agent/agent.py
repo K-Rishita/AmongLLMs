@@ -358,10 +358,17 @@ class LLMAgent(Agent):
             
             # Handle SPEAK action specially
             if action.name == "SPEAK" and "speak" in output_action_lower:
-                # Extract message after SPEAK:
+                # Extract message after SPEAK: (with or without colon)
                 speak_match = re.search(r"speak[:\s]+(.+)", output_action, re.IGNORECASE | re.DOTALL)
                 if speak_match:
                     action.message = speak_match.group(1).strip()
+                    return action, memory, summarization, None
+            
+            # Handle CALL MEETING / REPORT DEAD BODY interchangeably
+            # Since CallMeeting.__repr__() changes based on location, agents might use either term
+            if action.name == "CALL MEETING":
+                if ("call" in output_action_lower and "meeting" in output_action_lower) or \
+                   ("report" in output_action_lower and "body" in output_action_lower):
                     return action, memory, summarization, None
             
             # Handle VOTE action specially - look for "VOTE Player X"

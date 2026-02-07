@@ -134,8 +134,8 @@ GAME PHASES:
 CREWMATE ABILITIES:
 - COMPLETE TASK: Do your assigned tasks to help the crew win
 - MOVE: Travel to adjacent rooms
-- CALL MEETING: Press emergency button (Cafeteria) or report a dead body
-- SPEAK: Share observations during meetings
+- CALL MEETING: Press emergency button in Cafeteria OR report a dead body (will appear as "REPORT DEAD BODY at [location]" when you find a body)
+- SPEAK: Share observations during meetings (format as "SPEAK: your message")
 - VOTE / SKIP VOTE: Vote to eject a player or skip
 
 """ + MAP_CONFIG + "\n" + CONNECTION_INFO + """
@@ -189,6 +189,13 @@ I killed Player 2 in Cafeteria and vented to Admin. Player 5 is here with me. Ot
 Player 5 is alone with me but my KILL is on cooldown. I should act normal and move elsewhere.
 [Action] MOVE from Admin to O2
 
+Example (Discussion Phase):
+[Condensed Memory]
+Player 3 accused Player 4 of venting. I know Player 4 is innocent since I'm the Impostor.
+[Thinking Process]
+I need to seem helpful while deflecting. I'll cast doubt on Player 3's claim without being too defensive of Player 4.
+[Action] SPEAK: I was near that area and didn't see any venting. Are you sure Player 3?
+
 Example (Voting Phase):
 [Condensed Memory]
 Player 1 accused me. Player 4 defended me. No strong evidence against anyone.
@@ -212,12 +219,26 @@ Output format:
 {your reasoning about what to do}
 [Action] {EXACTLY one action from the Available actions list}
 
-Example (Witnessing a kill):
+Example (Witnessing a kill in Cafeteria):
 [Condensed Memory]
 I saw Player 1 kill Player 2 in Cafeteria!
 [Thinking Process]
 I witnessed a murder! I must call an emergency meeting immediately to report Player 1 as the Impostor.
 [Action] CALL MEETING using the emergency button at Cafeteria
+
+Example (Finding a dead body):
+[Condensed Memory]
+I found Player 3's dead body in Electrical. No one else is here.
+[Thinking Process]
+I need to report this body immediately to start a discussion and prevent more kills.
+[Action] REPORT DEAD BODY at Electrical
+
+Example (Discussion Phase):
+[Condensed Memory]
+Player 1 is being accused by Player 4. I saw Player 1 doing tasks in Weapons earlier.
+[Thinking Process]
+I should defend Player 1 since I have evidence they're likely innocent. This might help us focus on real suspects.
+[Action] SPEAK: I can vouch for Player 1, I saw them completing tasks in Weapons
 
 Example (Voting Phase):
 [Condensed Memory]
