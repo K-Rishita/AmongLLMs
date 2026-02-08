@@ -59,25 +59,35 @@ class Vent(MoveTo):
 
 
 class CallMeeting(Action):
-    def __init__(self, current_location):
+    def __init__(self, current_location, is_report=False):
         super().__init__("CALL MEETING", current_location=current_location)
+        self.is_report = is_report
 
     def __repr__(self):
-        if self.current_location == "Cafeteria":
-            return f"{self.name} using the emergency button at {self.current_location}"
-        else:
+        if self.is_report:
             return f"REPORT DEAD BODY at {self.current_location}"
+        else:
+            return f"{self.name} using the emergency button at {self.current_location}"
 
     def execute(self, env, player):
         super().execute(env, player)
         env.current_phase = "meeting"
-        env.button_num += 1
-        for player in env.players:
-            if not player.is_alive and not player.reported_death:
-                player.reported_death = True
+
+        if not self.is_report:
+            env.button_num += 1
+        else:
+            # Broadcast "DEAD BODY REPORTED" to all alive players
+            for p in env.players:
+                if p.is_alive:
+                    p.receive("DEAD BODY REPORTED", info_type="action")
+
+        for p in env.players:
+            if not p.is_alive and not p.reported_death:
+                p.reported_death = True
 
     @staticmethod
     def can_execute_actions(env, player):
+        actions = []
         if env.current_phase == "task":
             current_location = player.location
             players_in_the_same_room = env.map.get_players_in_room(
@@ -86,16 +96,28 @@ class CallMeeting(Action):
             other_players_in_the_same_room = [
                 p for p in players_in_the_same_room if p != player
             ]
+
             if (
                 current_location == "Cafeteria"
                 and env.button_num < env.game_config["max_num_buttons"]
             ):
-                return [CallMeeting(current_location=current_location)]
-            else:
-                for other_player in other_players_in_the_same_room:
-                    if not other_player.is_alive and not other_player.reported_death:
-                        return [CallMeeting(current_location=current_location)]
-        return []
+                actions.append(
+                    CallMeeting(current_location=current_location, is_report=False)
+                )
+
+            # Check if any body is reportable
+            can_report = False
+            for other_player in other_players_in_the_same_room:
+                if not other_player.is_alive and not other_player.reported_death:
+                    can_report = True
+                    break
+
+            if can_report:
+                actions.append(
+                    CallMeeting(current_location=current_location, is_report=True)
+                )
+
+        return actions
 
 
 class Vote(Action):
@@ -277,19 +299,22 @@ class Kill(Action):
         super().execute(env, player)
         self.other_player.is_alive = False
         player.kill_cooldown = env.game_config["kill_cooldown"]
-        
+
         # Record kill in history
         current_location = player.location
-        witnesses = [p.name for p in env.map.get_players_in_room(current_location) 
-                    if p != player and p != self.other_player and p.is_alive]
-        
+        witnesses = [
+            p.name
+            for p in env.map.get_players_in_room(current_location)
+            if p != player and p != self.other_player and p.is_alive
+        ]
+
         kill_record = {
             "timestep": env.timestep,
             "killer": player.name,
             "victim": self.other_player.name,
             "location": current_location,
             "witnesses": witnesses,
-            "method": "kill"
+            "method": "kill",
         }
         env.kill_history.append(kill_record)
 
@@ -340,17 +365,18 @@ class AttemptedAction(Action):
 
     def __repr__(self):
         return f"ATTEMPTED: {self.action_text_content}"
-    
+
     def action_text(self):
         return f"attempted {self.action_text_content} but failed"
 
     def execute(self, env, player):
         # Do nothing, the failure is recorded in the activity log via the action_text
         pass
-    
+
     @staticmethod
     def can_execute_actions(env, player):
         return []
+
 
 COMMON_ACTIONS = [MoveTo, CallMeeting, Vote, SkipVote, Speak, ViewMonitor]
 CREWMATE_ACTIONS = [CompleteTask]
