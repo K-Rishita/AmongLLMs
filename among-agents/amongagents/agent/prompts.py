@@ -87,11 +87,19 @@ followed by a voting round where players VOTE for a suspect or SKIP VOTE.
 
 ## VOTING RULES ##
 - You may SKIP VOTE if you are uncertain or don't want to vote for anyone.
-- SKIP VOTE does not count toward any player.
-- IMPORTANT: In case of a TIE vote (two or more players receive the same highest number of votes), NO ONE will be ejected.
-- Voting results (who voted for whom) will only be revealed after all votes are cast.
+- IMPORTANT: In case of a TIE vote NO ONE will be ejected.
+- Voting results (who voted for whom) will be revealed after all votes are cast.
 
 Be active in discussions - ask questions, share observations, and respond to others.
+"""
+
+VOTING_PHASE_INSTRUCTION = """\
+Discussion is over. You must now VOTE for a player to eject or SKIP VOTE.
+
+## VOTING RULES ##
+- You may SKIP VOTE if you are uncertain or don't want to vote.
+- IMPORTANT: In case of a TIE vote NO ONE will be ejected.
+- Voting results (who voted for whom) will be revealed after all votes are cast.
 """
 
 # =============================================================================

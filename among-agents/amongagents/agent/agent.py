@@ -12,7 +12,7 @@ import aiohttp
 import numpy as np
 import requests
 
-from amongagents.envs.action import AttemptedAction
+from amongagents.envs.action import SkipVote
 from amongagents.agent.prompts import *
 
 # Set Flask environment variable to True by default
@@ -384,30 +384,7 @@ class LLMAgent(Agent):
                 if "skip" in output_action_lower and "vote" in output_action_lower:
                     return action, memory, summarization, None
         
-        # Check for Attempted Illegal Actions (Hallucinations)
-        # Define patterns for known game actions to catch likely hallucinations
-        known_patterns = [
-            (r"MOVE\s+to\s+(.+)", "MOVE"),
-            (r"VENT\s+to\s+(.+)", "VENT"),
-            (r"KILL\s+(.+)", "KILL"),
-            (r"VOTE\s+(.+)", "VOTE"),
-            (r"SKIP\s+VOTE", "SKIP VOTE"),
-            (r"COMPLETE\s+TASK\s+(.+)", "COMPLETE TASK"),
-            (r"COMPLETE\s+FAKE\s+TASK\s+(.+)", "COMPLETE FAKE TASK"),
-            (r"SABOTAGE\s+(.+)", "SABOTAGE"),
-            (r"VIEW\s+MONITOR", "VIEW MONITOR"),
-            (r"CALL\s+MEETING", "CALL MEETING"),
-            (r"REPORT\s+DEAD\s+BODY", "REPORT DEAD BODY"),
-            (r"SPEAK[:\s]+(.+)", "SPEAK"),
-        ]
-        
-        for pattern, action_name in known_patterns:
-            if re.search(pattern, output_action, re.IGNORECASE):
-                # It looks like a valid action type, but wasn't in available_actions
-                # Return an AttemptedAction so the game records the failure instead of forcing retry
-                return AttemptedAction(output_action, current_location=self.player.location), memory, summarization, None
-
-        # No match found - generate helpful error message
+        # No match found - generate helpful error message (triggers retry loop)
         available_action_strs = [repr(a) for a in available_actions]
         error_msg = f"Could not match action. Got: '{output_action[:100]}...'. Available actions: {available_action_strs[:5]}"
         return None, memory, summarization, error_msg
@@ -511,7 +488,20 @@ Please reformat your response."""
                 {"role": "user", "content": feedback},
             ]
         
-        # All format retries exhausted - raise error (issues already tracked in self.issues)
+        # All format retries exhausted
+        # During voting phase, gracefully fall back to SKIP VOTE instead of crashing
+        is_voting_phase = all(a.name in ["VOTE", "SKIP VOTE"] for a in available_actions)
+        if is_voting_phase:
+            skip_action = SkipVote(current_location=self.player.location)
+            print(f"\n[FORMAT FALLBACK] {self.player.name} ({self.model}) failed to vote after {max_format_retries} retries — defaulting to SKIP VOTE")
+            self.log_interaction(
+                sysprompt=self.system_prompt,
+                prompt=full_prompt,
+                original_response=f"[FORMAT FALLBACK] Defaulted to SKIP VOTE after {max_format_retries} failed retries. Last error: {last_error}",
+                step=timestep,
+            )
+            return skip_action
+
         error_msg = f"Format validation failed after {max_format_retries} retries for {self.player.name} ({self.model}). Last error: {last_error}"
         print(f"\n[FATAL FORMAT ERROR] {error_msg}")
         raise RuntimeError(error_msg)

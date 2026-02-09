@@ -3,12 +3,12 @@ Pytest test suite for LLM response validation and action parsing.
 
 Tests cover:
 - Valid action matching
-- Hallucinated/unavailable action detection (AttemptedAction)
+- Hallucinated/unavailable action detection (now triggers retry, not AttemptedAction)
 - Malformed and truncated responses
 - Edge cases with weird formatting
 - SPEAK action special handling
 - VOTE action special handling
-- Retry logic behavior
+- Retry logic behavior (including SKIP VOTE fallback during voting phase)
 """
 
 import os
@@ -222,10 +222,15 @@ Must report immediately.
 
 
 class TestHallucinatedActionDetection:
-    """Tests for detecting and handling hallucinated (unavailable) actions."""
+    """Tests for detecting and handling hallucinated (unavailable) actions.
 
-    def test_unavailable_kill_returns_attempted_action(self, mock_agent):
-        """Test that attempting to KILL when not available returns AttemptedAction."""
+    After the unified retry refactor, hallucinated actions now return
+    (None, ..., error_msg) instead of AttemptedAction, so they trigger
+    the retry loop just like any other invalid output.
+    """
+
+    def test_unavailable_kill_returns_error(self, mock_agent):
+        """Test that attempting to KILL when not available returns error (triggers retry)."""
         # Only MOVE actions available (crewmate scenario)
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
@@ -241,12 +246,12 @@ I'll eliminate them.
             response, available_actions
         )
 
-        assert isinstance(action, AttemptedAction)
-        assert error is None  # Not an error, just an attempted action
-        assert "KILL Player 2" in repr(action)
+        assert action is None
+        assert error is not None
+        assert "Could not match action" in error
 
-    def test_unavailable_vent_returns_attempted_action(self, mock_agent):
-        """Test that attempting to VENT when not available returns AttemptedAction."""
+    def test_unavailable_vent_returns_error(self, mock_agent):
+        """Test that attempting to VENT when not available returns error (triggers retry)."""
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
         ]
@@ -261,11 +266,11 @@ I'll use the vent.
             response, available_actions
         )
 
-        assert isinstance(action, AttemptedAction)
-        assert "VENT" in repr(action)
+        assert action is None
+        assert error is not None
 
-    def test_unavailable_move_destination_returns_attempted_action(self, mock_agent):
-        """Test that moving to unavailable location returns AttemptedAction."""
+    def test_unavailable_move_destination_returns_error(self, mock_agent):
+        """Test that moving to unavailable location returns error (triggers retry)."""
         available_actions = [
             MoveTo("Cafeteria", "Admin"),
         ]
@@ -280,8 +285,8 @@ I want to check cameras.
             response, available_actions
         )
 
-        assert isinstance(action, AttemptedAction)
-        assert "MOVE" in repr(action)
+        assert action is None
+        assert error is not None
 
     def test_attempted_action_execute_does_nothing(self, mock_agent):
         """Test that executing AttemptedAction has no effect."""
@@ -633,10 +638,10 @@ I'm voting for Player 3.
         assert action.name == "VOTE"
 
     def test_vote_with_partial_name(self, mock_agent, vote_available_actions):
-        """Test voting with partial player name - currently returns AttemptedAction.
+        """Test voting with partial player name - returns error (triggers retry).
 
         Note: The current parser doesn't support partial name matching for votes.
-        This test documents the current behavior - partial names result in AttemptedAction.
+        This test documents the current behavior - partial names trigger retry.
         """
         response = """[Condensed Memory]
 Blue is sus.
@@ -648,12 +653,12 @@ Voting blue.
             response, vote_available_actions
         )
 
-        # Current behavior: partial name doesn't match, returns AttemptedAction
-        # Future enhancement: could add fuzzy matching for partial names
-        assert isinstance(action, AttemptedAction)
+        # Current behavior: partial name doesn't match, returns error for retry
+        assert action is None
+        assert error is not None
 
-    def test_vote_skip_returns_attempted_when_not_available(self, mock_agent, vote_available_actions_no_skip):
-        """Test skip vote returns AttemptedAction when NOT in available actions."""
+    def test_vote_skip_returns_error_when_not_available(self, mock_agent, vote_available_actions_no_skip):
+        """Test skip vote returns error when NOT in available actions (triggers retry)."""
         response = """[Condensed Memory]
 Not enough evidence.
 [Thinking Process]
@@ -664,8 +669,9 @@ I'll skip this vote.
             response, vote_available_actions_no_skip
         )
 
-        # Skip is not in available actions, should return AttemptedAction
-        assert isinstance(action, AttemptedAction)
+        # Skip is not in available actions, should return error for retry
+        assert action is None
+        assert error is not None
 
     def test_vote_with_for_keyword(self, mock_agent, vote_available_actions):
         """Test vote with 'for' keyword: VOTE for Player X."""
@@ -683,7 +689,7 @@ Player 3 is suspicious.
         assert action.name == "VOTE"
 
     def test_vote_with_color_only(self, mock_agent, vote_available_actions):
-        """Test vote using only color - currently returns AttemptedAction.
+        """Test vote using only color - returns error (triggers retry).
 
         Note: The current parser doesn't support color-only matching for votes.
         This test documents the current behavior.
@@ -698,8 +704,9 @@ I think cyan is sus.
             response, vote_available_actions
         )
 
-        # Current behavior: color-only doesn't match full name, returns AttemptedAction
-        assert isinstance(action, AttemptedAction)
+        # Current behavior: color-only doesn't match full name, returns error for retry
+        assert action is None
+        assert error is not None
 
     def test_vote_nonexistent_player(self, mock_agent, vote_available_actions):
         """Test voting for a player not in the game."""
@@ -713,8 +720,9 @@ Green is sus.
             response, vote_available_actions
         )
 
-        # Should return AttemptedAction since Player 5 doesn't exist
-        assert isinstance(action, AttemptedAction)
+        # Should return error since Player 5 doesn't exist (triggers retry)
+        assert action is None
+        assert error is not None
 
 
 # ============================================================================
@@ -1137,9 +1145,9 @@ Completing my task.
             response, basic_available_actions
         )
 
-        # Should return AttemptedAction since COMPLETE TASK isn't available
-        assert isinstance(action, AttemptedAction)
-        assert "COMPLETE TASK" in repr(action)
+        # Should return error since COMPLETE TASK isn't available (triggers retry)
+        assert action is None
+        assert error is not None
 
     def test_hallucinated_sabotage(self, mock_agent, basic_available_actions):
         """Test attempting to sabotage when not available."""
@@ -1153,8 +1161,9 @@ Sabotaging the lights.
             response, basic_available_actions
         )
 
-        assert isinstance(action, AttemptedAction)
-        assert "SABOTAGE" in repr(action)
+        # Should return error since SABOTAGE isn't available (triggers retry)
+        assert action is None
+        assert error is not None
 
 
 # ============================================================================
@@ -1222,8 +1231,8 @@ Moving.
         assert action.name == "MOVE"
 
     @pytest.mark.asyncio
-    async def test_attempted_action_no_retry(self, mock_agent):
-        """Test that AttemptedAction doesn't trigger retry (it's a valid outcome)."""
+    async def test_hallucination_triggers_retry(self, mock_agent):
+        """Test that hallucinated actions trigger retry (unified with other invalid output)."""
         # Only provide MOVE action, but response tries to KILL
         limited_actions = [MoveTo("Cafeteria", "Admin")]
 
@@ -1242,11 +1251,11 @@ Killing.
                 mock_send.return_value = hallucination_response
 
                 with patch.object(mock_agent, "log_interaction"):
-                    action = await mock_agent.choose_action(timestep=0)
+                    with pytest.raises(RuntimeError, match="Format validation failed"):
+                        await mock_agent.choose_action(timestep=0)
 
-        # send_request should only be called once - AttemptedAction is valid
-        assert mock_send.call_count == 1
-        assert isinstance(action, AttemptedAction)
+        # send_request should be called 3 times (all retries exhausted)
+        assert mock_send.call_count == 3
 
     @pytest.mark.asyncio
     async def test_max_retries_exhausted_raises_error(
@@ -1435,12 +1444,10 @@ I need to share what I saw.
 
     @pytest.mark.asyncio
     async def test_multiple_hallucinations_eventually_fail(self, mock_agent):
-        """Test that consistent hallucinations eventually raise an error."""
+        """Test that consistent hallucinations exhaust retries and raise an error."""
         # Only MOVE available but model keeps trying to KILL
         limited_actions = [MoveTo("Cafeteria", "Admin")]
 
-        # First response is a hallucination (KILL), but this returns AttemptedAction
-        # which is a valid result, so no retry is triggered
         hallucination = """[Condensed Memory]
 Test.
 [Thinking Process]
@@ -1456,11 +1463,11 @@ Kill.
                 mock_send.return_value = hallucination
 
                 with patch.object(mock_agent, "log_interaction"):
-                    action = await mock_agent.choose_action(timestep=0)
+                    with pytest.raises(RuntimeError, match="Format validation failed"):
+                        await mock_agent.choose_action(timestep=0)
 
-        # Hallucinations return AttemptedAction, not an error
-        assert mock_send.call_count == 1
-        assert isinstance(action, AttemptedAction)
+        # All 3 retries exhausted
+        assert mock_send.call_count == 3
 
 
 class TestRetryFeedbackMessage:

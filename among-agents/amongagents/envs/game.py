@@ -11,6 +11,7 @@ from amongagents.agent.agent import HumanAgent, LLMAgent, LLMHumanAgent, RandomA
 from amongagents.agent.prompts import (
     MEETING_PHASE_INSTRUCTION,
     TASK_PHASE_INSTRUCTION,
+    VOTING_PHASE_INSTRUCTION,
     CrewmatePersonalities,
     ImpostorPersonalities,
 )
@@ -21,6 +22,7 @@ from amongagents.envs.configs.agent_config import (
     IMPOSTOR_LLM,
 )
 from amongagents.envs.configs.game_config import FIVE_MEMBER_GAME, SEVEN_MEMBER_GAME
+from amongagents.envs.action import AttemptedAction
 from amongagents.envs.map import Map, Spaceship
 from amongagents.envs.player import PLAYER_COLORS, Crewmate, Impostor
 from amongagents.envs.task import TaskAssignment
@@ -686,9 +688,13 @@ class MessageSystem:
             instruction = TASK_PHASE_INSTRUCTION
         elif env.current_phase == "meeting":
             max_rounds = env.game_config["discussion_rounds"]
-            round = max_rounds - env.discussion_rounds_left
-            phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
-            instruction = MEETING_PHASE_INSTRUCTION
+            if env.discussion_rounds_left == 0:
+                phase_info = "Meeting phase - Voting round"
+                instruction = VOTING_PHASE_INSTRUCTION
+            else:
+                round = max_rounds - env.discussion_rounds_left + 1
+                phase_info = f"Meeting phase - Discussion round ({round}/{max_rounds})"
+                instruction = MEETING_PHASE_INSTRUCTION
         message = f"Game Time: {env.timestep}/{env.game_config['max_timesteps']}\n"
         message += f"Current phase: {phase_info}\n"
         message += f"{instruction}\n"
@@ -715,6 +721,9 @@ class MessageSystem:
     def route_real_time_message(self, env, record):
         player = record["player"]
         action = record["action"]
+        # Don't broadcast AttemptedActions — they are no-ops and leak intent
+        if isinstance(action, AttemptedAction):
+            return
         location = action.current_location
         new_location = (
             action.new_location if hasattr(action, "new_location") else location
