@@ -44,6 +44,7 @@ DEFAULT_GAME_ARGS = {
             "google/gemini-3-flash-preview",
             "meta-llama/llama-3.3-70b-instruct",
             "anthropic/claude-sonnet-4.5",
+            "qwen/qwen3-vl-30b-a3b-instruct"
         ],
         "CREWMATE_LLM_CHOICES": [
             "openai/gpt-oss-120b",
@@ -52,6 +53,7 @@ DEFAULT_GAME_ARGS = {
             "google/gemini-3-flash-preview",
             "meta-llama/llama-3.3-70b-instruct",
             "anthropic/claude-sonnet-4.5",
+            "qwen/qwen3-vl-30b-a3b-instruct"
         ],
         "assignment_mode": "unique",  # 'random' picks with replacement, 'unique' picks without replacement
     },
