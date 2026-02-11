@@ -314,6 +314,16 @@ class LLMAgent(Agent):
         if not response or not response.strip():
             return None, None, None, "Response is empty"
         
+        # Reject responses with multiple [Action] tags — the model is
+        # second-guessing itself, so force a clean retry instead of
+        # risking a match on the wrong (possibly hallucinated) action.
+        action_tag_count = len(re.findall(r"\[Action\]", response, re.IGNORECASE))
+        if action_tag_count > 1:
+            return None, None, None, (
+                f"Response contains {action_tag_count} [Action] tags — "
+                "model appears to be self-correcting. Pick exactly ONE action."
+            )
+        
         # Try to parse the structured format
         pattern = r"\[Condensed Memory\]((.|\n)*?)\[Thinking Process\]((.|\n)*?)\[Action\]((.|\n)*)$"
         match = re.search(pattern, response, re.IGNORECASE)

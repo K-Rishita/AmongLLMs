@@ -387,7 +387,11 @@ I'll move.
         assert action.name == "MOVE"
 
     def test_multiple_action_sections(self, mock_agent, basic_available_actions):
-        """Test response with multiple [Action] sections (should use last one)."""
+        """Test response with multiple [Action] sections (model self-correcting).
+        
+        Should be REJECTED — the model is second-guessing itself, which risks
+        matching on a hallucinated action. Force a clean retry instead.
+        """
         response = """[Condensed Memory]
 Testing.
 [Thinking Process]
@@ -400,9 +404,32 @@ Wait, actually I should go to Admin instead.
             response, basic_available_actions
         )
 
-        # Should match one of the actions
-        assert action is not None
-        assert action.name == "MOVE"
+        assert action is None
+        assert error is not None
+        assert "[Action] tags" in error
+
+    def test_multiple_action_sections_with_hallucinated_first(
+        self, mock_agent, basic_available_actions
+    ):
+        """Model picks a hallucinated action, realizes, then picks a valid one.
+        
+        Must reject the whole response — we can't trust which was intended.
+        """
+        response = """[Condensed Memory]
+I need to eliminate someone.
+[Thinking Process]
+I'll sabotage O2.
+[Action] SABOTAGE O2
+Oh wait, that one isn't available.
+[Action] MOVE from Cafeteria to Admin"""
+
+        action, memory, summarization, error = mock_agent._validate_and_parse_action(
+            response, basic_available_actions
+        )
+
+        assert action is None
+        assert error is not None
+        assert "[Action] tags" in error
 
     def test_only_action_marker_no_content(self, mock_agent, basic_available_actions):
         """Test response with [Action] marker but no action content."""

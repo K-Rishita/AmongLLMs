@@ -193,6 +193,11 @@ class AmongUs:
                     random.shuffle(impostor_models)
                     random.shuffle(crewmate_models)
 
+            # Build the impostor list
+            self.list_of_impostors = [
+                player.name for player in self.players if player.identity == "Impostor"
+            ]
+
             agent_dict = {
                 "LLM": lambda player, model=None: LLMAgent(
                     player,
@@ -243,8 +248,6 @@ class AmongUs:
                     print(
                         f"{i} Initializing player {player.name} with identity {player.identity} and LLM choice {self.agents[-1].model}"
                     )
-                if player.identity == "Impostor":
-                    self.list_of_impostors.append(player.name)
 
                 # add to summary json
                 self.summary_json[f"Game {self.game_index}"]["Player " + str(i + 1)] = {
