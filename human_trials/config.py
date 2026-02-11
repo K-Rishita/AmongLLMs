@@ -26,6 +26,7 @@ BIG_LIST_OF_MODELS = [
     "google/gemini-2.0-flash-001",
     "meta-llama/llama-3.3-70b-instruct:free",
     "openai/gpt-5-mini",
+    "qwen/qwen3-next-80b-a3b-thinking",
 ]
 
 # Actual default game configuration for Human Trials
@@ -44,7 +45,7 @@ DEFAULT_GAME_ARGS = {
             "google/gemini-3-flash-preview",
             "meta-llama/llama-3.3-70b-instruct",
             "anthropic/claude-sonnet-4.5",
-            "qwen/qwen3-vl-30b-a3b-instruct",
+            "qwen/qwen3-next-80b-a3b-thinking",
         ],
         "CREWMATE_LLM_CHOICES": [
             "openai/gpt-5-mini",
@@ -53,7 +54,7 @@ DEFAULT_GAME_ARGS = {
             "google/gemini-3-flash-preview",
             "meta-llama/llama-3.3-70b-instruct",
             "anthropic/claude-sonnet-4.5",
-            "qwen/qwen3-vl-30b-a3b-instruct",
+            "qwen/qwen3-next-80b-a3b-thinking",
         ],
         "assignment_mode": "unique",  # 'random' picks with replacement, 'unique' picks without replacement
     },
