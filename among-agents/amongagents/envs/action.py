@@ -68,7 +68,11 @@ class CallMeeting(Action):
         if self.is_report:
             return f"REPORT DEAD BODY at {self.current_location}"
         else:
-            remaining = f" ({self.buttons_remaining} use(s) left)" if self.buttons_remaining is not None else ""
+            remaining = (
+                f" ({self.buttons_remaining} use(s) left)"
+                if self.buttons_remaining is not None
+                else ""
+            )
             return f"{self.name} using the emergency button at {self.current_location}{remaining}"
 
     def execute(self, env, player):
@@ -107,8 +111,12 @@ class CallMeeting(Action):
                 and env.button_num < env.game_config["max_num_buttons"]
             ):
                 actions.append(
-                    CallMeeting(current_location=current_location, is_report=False,
-                                buttons_remaining=env.game_config["max_num_buttons"] - env.button_num)
+                    CallMeeting(
+                        current_location=current_location,
+                        is_report=False,
+                        buttons_remaining=env.game_config["max_num_buttons"]
+                        - env.button_num,
+                    )
                 )
 
             # Check if any body is reportable

@@ -140,6 +140,8 @@ IMPOSTOR_PROMPT = """
 You are {name}. You are an Impostor on the spaceship Skeld.
 There are {num_players} players, {num_impostors} Impostor(s).
 
+{impostor_teammates_text}
+
 OBJECTIVE: Eliminate Crewmates until Impostors equal or outnumber Crewmates, before all tasks are completed.
 
 """ + GAME_END_CONDITIONS + """

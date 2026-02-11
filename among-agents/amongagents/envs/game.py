@@ -445,7 +445,7 @@ class AmongUs:
                     player.receive(self.pending_system_announcement, info_type="action")
             print(self.pending_system_announcement)
             self.pending_system_announcement = None
-        
+
         for agent in self.agents:
             if "homosapiens" in agent.model:
                 self.is_human_turn = True
@@ -526,7 +526,9 @@ class AmongUs:
             vote_tally[full_name] = vote_count
 
         # Count skip votes
-        skip_votes = sum(1 for target in self.vote_info_one_round.values() if target == "SKIP")
+        skip_votes = sum(
+            1 for target in self.vote_info_one_round.values() if target == "SKIP"
+        )
         if skip_votes > 0:
             vote_tally["SKIP"] = skip_votes
 
@@ -590,7 +592,7 @@ class AmongUs:
             system_announcement += f"{eliminated_player.name} was ejected!\n"
         else:
             system_announcement += "No one was ejected.\n"
-        
+
         # Store the announcement to be shown at start of next task phase
         self.pending_system_announcement = system_announcement
 
