@@ -412,9 +412,13 @@ class AmongUs:
         action = await agent.choose_action(self.timestep)
         observation_location = ""
         if action.name == "ViewMonitor":
-            observation_location = agent.choose_observation_location(
+            result = agent.choose_observation_location(
                 self.map.ship_map.nodes
             )
+            if asyncio.iscoroutine(result):
+                observation_location = await result
+            else:
+                observation_location = result
         self.camera_record[agent.player.name] = action
         if str(action).startswith("KILL"):
             location = agent.player.location
