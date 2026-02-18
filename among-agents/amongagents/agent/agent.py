@@ -21,7 +21,8 @@ if "FLASK" not in os.environ:
 
 # Global dictionary to store futures for human actions, keyed by game_id
 human_action_futures: Dict[int, asyncio.Future] = {}
-
+human_monitor_futures = {}
+human_monitor_rooms = {}
 
 class Agent:
     def __init__(self, player):
@@ -896,22 +897,47 @@ class HumanAgent(Agent):
         response = input()
         return response
 
-    def choose_observation_location(self, map):
+    async def choose_observation_location(self, map):
+        """Choose a room to monitor — via web or CLI depending on FLASK_ENABLED."""
+        use_flask = os.getenv("FLASK_ENABLED", "True") == "True"
         map_list = list(map)
-        print("Please select the room you wish to observe:")
-        for i, room in enumerate(map_list):
-            print(f"{i}: {room}")
-        while True:
+
+        if use_flask:
+            loop = asyncio.get_event_loop()
+            self.monitor_future = loop.create_future()
+
+            game_id = getattr(self, "game_id", self.game_index)
+            human_monitor_futures[game_id] = self.monitor_future
+            human_monitor_rooms[game_id] = map_list
+
+            print(f"[Agent] Waiting for monitor room selection for game {game_id}")
+            print(f"[Agent] Available rooms: {map_list}")
+
             try:
-                index = int(input())
-                if index < 0 or index >= len(map_list):
-                    print(
-                        f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}."
-                    )
-                else:
-                    return map_list[index]
-            except:
-                print("Invalid input. Please enter a number.")
+                chosen_room = await self.monitor_future
+                print(f"[Agent] Room selected: {chosen_room}")
+                return chosen_room
+            except asyncio.CancelledError:
+                print(f"[Agent] Monitor room selection cancelled for game {game_id}")
+                raise
+            finally:
+                human_monitor_futures.pop(game_id, None)
+                human_monitor_rooms.pop(game_id, None)
+                self.monitor_future = None
+        else:
+            # CLI fallback
+            print("Please select the room you wish to observe:")
+            for i, room in enumerate(map_list):
+                print(f"{i}: {room}")
+            while True:
+                try:
+                    index = int(input())
+                    if index < 0 or index >= len(map_list):
+                        print(f"Invalid input. Please enter a number between 0 and {len(map_list) - 1}.")
+                    else:
+                        return map_list[index]
+                except:
+                    print("Invalid input. Please enter a number.")
 
     def log_interaction(self, sysprompt, prompt, original_response, step):
         """
