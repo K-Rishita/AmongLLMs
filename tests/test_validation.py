@@ -131,7 +131,6 @@ def vote_available_actions_no_skip(mock_target_player):
 
 
 
-
 # ============================================================================
 # Test: Valid Action Matching
 # ============================================================================
@@ -1598,6 +1597,7 @@ Moving.
         retry_messages = captured_messages[1]
         feedback_content = str(retry_messages)
         assert "MOVE" in feedback_content or "Available actions" in feedback_content
+
 
 # ============================================================================
 # Run Tests
