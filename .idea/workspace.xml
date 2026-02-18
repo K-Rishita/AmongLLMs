@@ -4,13 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8ac8b150-79aa-44f2-8f30-6957cba8f9b5" name="Changes" comment="">
+    <list default="true" id="8ac8b150-79aa-44f2-8f30-6957cba8f9b5" name="Changes" comment="View Monitor small fix">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/among-agents/amongagents/agent/agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/among-agents/amongagents/agent/agent.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/among-agents/amongagents/envs/game.py" beforeDir="false" afterPath="$PROJECT_DIR$/among-agents/amongagents/envs/game.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/among-agents/amongagents/envs/action.py" beforeDir="false" afterPath="$PROJECT_DIR$/among-agents/amongagents/envs/action.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/human_trials/game.html" beforeDir="false" afterPath="$PROJECT_DIR$/human_trials/game.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/human_trials/server.py" beforeDir="false" afterPath="$PROJECT_DIR$/human_trials/server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_validation.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_validation.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -32,6 +29,9 @@
     &quot;accountId&quot;: &quot;fe128f81-c6e7-49d7-8767-9b560cddd76f&quot;
   }
 }</component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -177,8 +177,18 @@
       <workItem from="1771383439142" duration="63000" />
       <workItem from="1771383518323" duration="8080000" />
       <workItem from="1771394417535" duration="1941000" />
-      <workItem from="1771396465454" duration="1899000" />
+      <workItem from="1771396465454" duration="2585000" />
+      <workItem from="1771421177227" duration="1468000" />
     </task>
+    <task id="LOCAL-00001" summary="view monitor ui">
+      <option name="closed" value="true" />
+      <created>1771398386968</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1771398386968</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -194,6 +204,11 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="view monitor ui" />
+    <MESSAGE value="View Monitor small fix" />
+    <option name="LAST_COMMIT_MESSAGE" value="View Monitor small fix" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
