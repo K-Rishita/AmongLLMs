@@ -116,7 +116,7 @@ async def run_game_background(game_id: int):
         await game.run_game()
         game_info["status"] = "completed"
         try:
-            logs_path = os.path.join(script_dir, "logs")
+            logs_path = game_info.get("log_dir", os.path.join(script_dir, "logs"))
             folder_id = os.environ.get("GCS_BUCKET_NAME")
             upload_logs_to_drive(logs_path, folder_id)
         except Exception as e:
@@ -172,6 +172,15 @@ async def start_game(request: GameStartRequest):
             ]
 
         game_id = get_run_games().get_next_game_id()
+        get_run_games().increment_game_id()
+
+        # Create a unique log directory for this game
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        game_log_dir = os.path.join(script_dir, "logs", f"game_{game_id}_{timestamp}")
+        os.makedirs(game_log_dir, exist_ok=True)
+        os.environ["EXPERIMENT_PATH"] = game_log_dir
+
         game = get_run_games().create_game(game_id=game_id, custom_args=custom_args)
 
         active_games[game_id] = {
@@ -180,6 +189,7 @@ async def start_game(request: GameStartRequest):
             "status": "created",
             "error_message": None,
             "results": None,
+            "log_dir": game_log_dir,
         }
 
         response_config = {
@@ -544,12 +554,12 @@ async def end_game(game_id: int):
     game_info = active_games[game_id]
     game_info["status"] = "cancelled"
 
-    # Upload logs to Drive
+    # Upload logs to GCS
     try:
-        logs_path = os.path.join(script_dir, "logs")
+        logs_path = game_info.get("log_dir", os.path.join(script_dir, "logs"))
         folder_id = os.environ.get("GCS_BUCKET_NAME")
         upload_logs_to_drive(logs_path, folder_id)
-        print(f"[Server] Logs uploaded to Drive for game {game_id}.")
+        print(f"[Server] Logs uploaded to GCS for game {game_id}.")
     except Exception as e:
         print(f"[Server] Failed to upload logs for game {game_id}: {e}")
 
