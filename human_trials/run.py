@@ -49,7 +49,7 @@ class RunGames:
         """
         self.games: Dict[int, AmongUs] = {}
         self.game_args = game_args if game_args else DEFAULT_GAME_ARGS.copy()
-        self.next_game_id = 1
+        self.next_game_id = self._detect_next_game_id()
         self.setup_experiment_once()
 
     def setup_experiment_once(self):
@@ -110,6 +110,19 @@ class RunGames:
                     os.remove(lock_file)
                 except:
                     pass
+
+    def _detect_next_game_id(self) -> int:
+        """Scan existing log folders to find the next game ID."""
+        max_id = 0
+        if os.path.exists(LOGS_PATH):
+            import re
+            for name in os.listdir(LOGS_PATH):
+                match = re.match(r"game_(\d+)_", name)
+                if match:
+                    max_id = max(max_id, int(match.group(1)))
+        next_id = max_id + 1
+        print(f"[RunGames] Detected next game ID: {next_id}")
+        return next_id
 
     def get_next_game_id(self):
         """Get the next game ID"""

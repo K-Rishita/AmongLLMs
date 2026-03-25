@@ -565,6 +565,10 @@ async def end_game(game_id: int):
 
     return {"status": "cancelled", "game_id": game_id}
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 
 
 if __name__ == "__main__":
